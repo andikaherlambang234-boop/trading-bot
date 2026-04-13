@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Sniper Trading Elite</title>
+
+<style>
+body{
+  background:#0f172a;
+  color:#fff;
+  font-family:sans-serif;
+  text-align:center;
+}
+.container{padding:10px;}
+.card{
+  background:#1e293b;
+  margin:10px;
+  padding:15px;
+  border-radius:12px;
+}
+.price h1{font-size:32px;}
+.signal{font-size:28px;font-weight:bold;}
+.buy{color:#22c55e;}
+.sell{color:#ef4444;}
+.wait{color:#eab308;}
+button{
+  padding:10px;
+  border:none;
+  border-radius:10px;
+  background:#3b82f6;
+  color:white;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="card price">
+    <div>PRICE</div>
+    <h1 id="pMain">0</h1>
+  </div>
+
+  <div class="card signal wait" id="sigBox">WAIT</div>
+
+  <div class="card">
+    Confidence: <span id="confNum">0%</span>
+  </div>
+
+  <div class="card">
+    <div>Trend: <span id="trendBox">-</span></div>
+    <div>RSI: <span id="rsiBox">-</span></div>
+    <div>Mode: <span id="modeBox">BTC</span></div>
+  </div>
+
+  <div class="card">
+    <div>ENTRY: <span id="entry"></span></div>
+    <div>SL: <span id="sl"></span></div>
+    <div>TP: <span id="tp"></span></div>
+  </div>
+
+  <button onclick="toggleMode()">SWITCH BTC/GOLD</button>
+
+</div>
+
+<script>
+"use strict";
+
+/* ===== STATE ===== */
+let S={
+  price:0,
+  atr14:10,
+  direction:"WAIT",
+  confidence:0,
+  klinesM5:[],
+  inds:{},
+  mtf:{align:3}
+};
+
+/* ===== UTILS ===== */
+function num(x){let v=parseFloat(x);return isNaN(v)?0:v;}
+function limit(K){return K.length>150?K.slice(-150):K;}
+
+/* ===== INDICATOR ===== */
+function ema(arr,n){
+  if(arr.length<n) return arr[arr.length-1]||0;
+  let k=2/(n+1),e=arr[0];
+  for(let i=1;i<arr.length;i++) e=arr[i]*k+e*(1-k);
+  return e;
+}
+
+function rsi(C,n=14){
+  if(C.length<n+1) return 50;
+  let g=0,l=0;
+  for(let i=C.length-n;i<C.length;i++){
+    let d=C[i]-C[i-1];
+    if(d>0) g+=d; else l-=d;
+  }
+  g/=n;l/=n;
+  if(l===0) return 100;
+  return 100-(100/(1+(g/l)));
+}
+
+/* ===== SMART MONEY ===== */
+function detectBOS(){
+  let K=S.klinesM5;
+  if(K.length<20) return "NONE";
+  let highs=K.slice(-20).map(k=>num(k[2]));
+  let lows=K.slice(-20).map(k=>num(k[3]));
+  let c=num(K[K.length-1][4]);
+  if(c>Math.max(...highs.slice(0,-1))) return "BULL";
+  if(c<Math.min(...lows.slice(0,-1))) return "BEAR";
+  return "NONE";
+}
+
+function detectLiquidity(){
+  let K=S.klinesM5.slice(-5);
+  if(K.length<5) return false;
+  let high=Math.max(...K.map(k=>num(k[2])));
+  let low=Math.min(...K.map(k=>num(k[3])));
+  let last=K[K.length-1];
+  let close=num(last[4]);
+
+  if(num(last[2])>high && close<high) return "SELL";
+  if(num(last[3])<low && close>low) return "BUY";
+  return false;
+}
+
+/* ===== SNIPER ===== */
+function sniperSignal(){
+  let closes=S.klinesM5.map(k=>num(k[4]));
+  let emaFast=ema(closes,9);
+  let emaSlow=ema(closes,21);
+  let r=rsi(closes);
+
+  let signal="WAIT",conf=0;
+  let bos=detectBOS();
+  let liq=detectLiquidity();
+
+  if(emaFast>emaSlow){signal="BUY";conf+=20;}
+  if(emaFast<emaSlow){signal="SELL";conf+=20;}
+
+  if(signal==="BUY" && r>55) conf+=15;
+  if(signal==="SELL" && r<45) conf+=15;
+
+  if(signal==="BUY" && bos==="BULL") conf+=25;
+  if(signal==="SELL" && bos==="BEAR") conf+=25;
+
+  if(liq===signal) conf+=30;
+
+  return {signal,confidence:Math.min(100,conf)};
+}
+
+/* ===== ENTRY PRESISI ===== */
+function getZone(){
+  let K=S.klinesM5.slice(-20);
+  let demand=null,supply=null;
+
+  for(let i=K.length-1;i>=0;i--){
+    let o=num(K[i][1]),c=num(K[i][4]);
+    if(c<o && !demand) demand=c;
+    if(c>o && !supply) supply=c;
+    if(demand&&supply) break;
+  }
+  return {demand,supply};
+}
+
+function precisionEntry(){
+  let z=getZone(),p=S.price;
+
+  if(S.direction==="BUY" && z.demand){
+    if(Math.abs(p-z.demand)<S.atr14*0.3) return "BUY";
+  }
+
+  if(S.direction==="SELL" && z.supply){
+    if(Math.abs(p-z.supply)<S.atr14*0.3) return "SELL";
+  }
+
+  return "WAIT";
+}
+
+/* ===== AI ===== */
+function predict(){
+  let r=S.inds.rsi||50;
+  if(r>60) return "BULLISH";
+  if(r<40) return "BEARISH";
+  return "NEUTRAL";
+}
+
+/* ===== ENTRY CALC ===== */
+function calcEntry(){
+  let p=S.price,a=S.atr14;
+  if(S.direction==="BUY") return {entry:p,sl:p-a,tp:p+a*2};
+  if(S.direction==="SELL") return {entry:p,sl:p+a,tp:p-a*2};
+}
+
+/* ===== BOT ===== */
+let lastTrade=0;
+function canTrade(){
+  let now=Date.now();
+  if(now-lastTrade<60000) return false;
+  lastTrade=now;
+  return true;
+}
+
+function placeOrder(t){
+  console.log("ORDER:",t,S.price);
+}
+
+function eliteBot(){
+  if(!canTrade()) return;
+
+  let s=sniperSignal();
+  let pred=predict();
+  let pe=precisionEntry();
+
+  if(s.confidence<75) return;
+
+  if(pe==="BUY" && pred==="BULLISH") placeOrder("BUY");
+  if(pe==="SELL" && pred==="BEARISH") placeOrder("SELL");
+
+  S.direction=s.signal;
+  S.confidence=s.confidence;
+}
+
+/* ===== REAL DATA ===== */
+let ws,currentSymbol="btcusdt";
+
+function connectWS(sym){
+  if(ws) ws.close();
+
+  ws=new WebSocket(`wss://stream.binance.com:9443/ws/${sym}@kline_1m`);
+
+  ws.onmessage=(e)=>{
+    let d=JSON.parse(e.data);
+    let k=d.k;
+
+    let candle=[k.t,k.o,k.h,k.l,k.c,k.v];
+
+    S.price=num(k.c);
+
+    if(k.x){
+      S.klinesM5.push(candle);
+      S.klinesM5=limit(S.klinesM5);
+    }
+
+    let closes=S.klinesM5.map(c=>num(c[4]));
+    S.inds.rsi=rsi(closes);
+
+    updateUI();
+  };
+
+  ws.onclose=()=>setTimeout(()=>connectWS(sym),2000);
+}
+
+function toggleMode(){
+  currentSymbol=currentSymbol==="btcusdt"?"paxgusdt":"btcusdt";
+  connectWS(currentSymbol);
+}
+
+/* ===== UI ===== */
+function updateUI(){
+  pMain.innerText=S.price.toFixed(2);
+
+  sigBox.innerText=S.direction;
+  sigBox.className="card signal "+(
+    S.direction==="BUY"?"buy":
+    S.direction==="SELL"?"sell":"wait"
+  );
+
+  confNum.innerText=S.confidence+"%";
+  trendBox.innerText=S.direction;
+  rsiBox.innerText=(S.inds.rsi||0).toFixed(1);
+  modeBox.innerText=currentSymbol==="btcusdt"?"BTC":"GOLD";
+
+  let e=calcEntry();
+  if(e){
+    entry.innerText=e.entry.toFixed(2);
+    sl.innerText=e.sl.toFixed(2);
+    tp.innerText=e.tp.toFixed(2);
+  }
+}
+
+/* ===== START ===== */
+connectWS(currentSymbol);
+setInterval(eliteBot,3000);
+
+</script>
+</body>
+  </html>
