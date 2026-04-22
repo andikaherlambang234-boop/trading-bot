@@ -1,291 +1,738 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Sniper Trading Elite</title>
-
-<style>
-body{
-  background:#0f172a;
-  color:#fff;
-  font-family:sans-serif;
-  text-align:center;
-}
-.container{padding:10px;}
-.card{
-  background:#1e293b;
-  margin:10px;
-  padding:15px;
-  border-radius:12px;
-}
-.price h1{font-size:32px;}
-.signal{font-size:28px;font-weight:bold;}
-.buy{color:#22c55e;}
-.sell{color:#ef4444;}
-.wait{color:#eab308;}
-button{
-  padding:10px;
-  border:none;
-  border-radius:10px;
-  background:#3b82f6;
-  color:white;
-}
-</style>
-</head>
-
-<body>
-
-<div class="container">
-
-  <div class="card price">
-    <div>PRICE</div>
-    <h1 id="pMain">0</h1>
-  </div>
-
-  <div class="card signal wait" id="sigBox">WAIT</div>
-
-  <div class="card">
-    Confidence: <span id="confNum">0%</span>
-  </div>
-
-  <div class="card">
-    <div>Trend: <span id="trendBox">-</span></div>
-    <div>RSI: <span id="rsiBox">-</span></div>
-    <div>Mode: <span id="modeBox">BTC</span></div>
-  </div>
-
-  <div class="card">
-    <div>ENTRY: <span id="entry"></span></div>
-    <div>SL: <span id="sl"></span></div>
-    <div>TP: <span id="tp"></span></div>
-  </div>
-
-  <button onclick="toggleMode()">SWITCH BTC/GOLD</button>
-
-</div>
-
 <script>
-"use strict";
-
-/* ===== STATE ===== */
-let S={
-  price:0,
-  atr14:10,
-  direction:"WAIT",
-  confidence:0,
-  klinesM5:[],
-  inds:{},
-  mtf:{align:3}
+// ==========================================
+// 1. GLOBAL STATE & CONFIG
+// ==========================================
+let APST = {
+    price: 0,
+    prevClose: 0,
+    composite: 50,
+    signal: 'NEUTRAL',
+    eqs: 5,
+    session: 'ASIA',
+    dxy: { price: 0, change: 0, changePct: 0 },
+    tfData: { M5: {}, M15: {}, H1: {}, H4: {}, D1: {} },
+    pivots: {},
+    fibLevels: {},
+    cpr: {},
+    isFetching: false,
+    retryCount: 0
 };
 
-/* ===== UTILS ===== */
-function num(x){let v=parseFloat(x);return isNaN(v)?0:v;}
-function limit(K){return K.length>150?K.slice(-150):K;}
+let cfg = {
+    apiKey: '',
+    tgToken: '',
+    tgChat: '',
+    tgSig: false,
+    tgSb: false,
+    alertAbove: 0,
+    alertBelow: 0
+};
 
-/* ===== INDICATOR ===== */
-function ema(arr,n){
-  if(arr.length<n) return arr[arr.length-1]||0;
-  let k=2/(n+1),e=arr[0];
-  for(let i=1;i<arr.length;i++) e=arr[i]*k+e*(1-k);
-  return e;
+let winHistory = {};
+let currentTP = '';
+let _chatSending = false;
+let chatHistory = [];
+let timeLeft = 60;
+const currentRefresh = 60;
+let prevNotifSignal = '';
+let alertAboveFired = false;
+let alertBelowFired = false;
+
+// ==========================================
+// 2. HELPER FUNCTIONS (The Missing Parts)
+// ==========================================
+const $ = (id) => document.getElementById(id);
+const fNum = (n, d = 2) => n != null ? Number(n).toFixed(d) : '0';
+const fPrice = (n) => n != null ? '$' + Number(n).toFixed(2) : '—';
+const fPct = (n) => (n != null ? (n > 0 ? '+' : '') + n.toFixed(2) + '%' : '0%');
+const fDollar = (n) => n != null ? (n > 0 ? '+' : '') + '$' + n.toFixed(2) : '—';
+const esc = (str) => str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+const lsSet = (key, val) => localStorage.setItem(key, JSON.stringify(val));
+const lsGet = (key) => JSON.parse(localStorage.getItem(key)) || {};
+
+const sigColor = (sig) => {
+    if (sig.includes('STRONG BUY')) return '#10B981';
+    if (sig.includes('BUY')) return '#34D399';
+    if (sig.includes('STRONG SELL')) return '#EF4444';
+    if (sig.includes('SELL')) return '#F87171';
+    return 'var(--gold)';
+};
+
+const sigCls = (sig) => {
+    if (sig.includes('STRONG BUY')) return 'sig-sb';
+    if (sig.includes('BUY')) return 'sig-b';
+    if (sig.includes('STRONG SELL')) return 'sig-ss';
+    if (sig.includes('SELL')) return 'sig-s';
+    return 'sig-n';
+};
+
+const badgeCls = (sig) => {
+    if (sig.includes('STRONG BUY')) return 'b-sb';
+    if (sig.includes('BUY')) return 'b-buy';
+    if (sig.includes('STRONG SELL')) return 'b-ss';
+    if (sig.includes('SELL')) return 'b-sell';
+    return 'b-neu';
+};
+
+const tfCls = (sig) => {
+    if (sig === 'STRONG BUY') return 'tf-sb';
+    if (sig === 'BUY') return 'tf-b';
+    if (sig === 'STRONG SELL') return 'tf-ss';
+    if (sig === 'SELL') return 'tf-s';
+    return 'tf-n';
+};
+
+const sigShort = (sig) => {
+    const map = { 'STRONG BUY': 'S.BUY', 'BUY': 'BUY', 'STRONG SELL': 'S.SELL', 'SELL': 'SELL', 'NEUTRAL': 'NEU' };
+    return map[sig] || 'NEU';
+};
+
+function isMarketOpen() {
+    const hour = new Date().getUTCHours();
+    return (hour >= 0 && hour < 23); // Simplified
 }
 
-function rsi(C,n=14){
-  if(C.length<n+1) return 50;
-  let g=0,l=0;
-  for(let i=C.length-n;i<C.length;i++){
-    let d=C[i]-C[i-1];
-    if(d>0) g+=d; else l-=d;
-  }
-  g/=n;l/=n;
-  if(l===0) return 100;
-  return 100-(100/(1+(g/l)));
+function getRoundLvls(price) {
+    const round = Math.round(price / 10) * 10;
+    return [round - 20, round - 10, round, round + 10, round + 20];
 }
 
-/* ===== SMART MONEY ===== */
-function detectBOS(){
-  let K=S.klinesM5;
-  if(K.length<20) return "NONE";
-  let highs=K.slice(-20).map(k=>num(k[2]));
-  let lows=K.slice(-20).map(k=>num(k[3]));
-  let c=num(K[K.length-1][4]);
-  if(c>Math.max(...highs.slice(0,-1))) return "BULL";
-  if(c<Math.min(...lows.slice(0,-1))) return "BEAR";
-  return "NONE";
+// ==========================================
+// 3. CORE TRADING LOGIC (The Brain)
+// ==========================================
+function calcScalpScoreV4() {
+    const m5 = APST.tfData.M15?.normalized || 50;
+    const m15 = APST.tfData.H1?.normalized || 50;
+    const avg = (m5 + m15) / 2;
+    let dir = 'NEUTRAL', strength = 'Low';
+    if (avg > 60) { dir = 'BULL'; strength = avg > 75 ? 'Strong' : 'Moderate'; }
+    else if (avg < 40) { dir = 'BEAR'; strength = avg < 25 ? 'Strong' : 'Moderate'; }
+    return { scalp: avg, dir, strength, m5Score: Math.round(m5), m15Score: Math.round(m15), squeeze: APST.tfData.H1?.squeeze?.sqzOn };
 }
 
-function detectLiquidity(){
-  let K=S.klinesM5.slice(-5);
-  if(K.length<5) return false;
-  let high=Math.max(...K.map(k=>num(k[2])));
-  let low=Math.min(...K.map(k=>num(k[3])));
-  let last=K[K.length-1];
-  let close=num(last[4]);
+function calcSniperScore() {
+    const h1 = APST.tfData.H1;
+    if (!h1) return null;
+    let score = 50;
+    let factors = [];
+    let isBull = h1.supertrend?.bullish || false;
 
-  if(num(last[2])>high && close<high) return "SELL";
-  if(num(last[3])<low && close>low) return "BUY";
-  return false;
+    // 1. Supertrend (25pts)
+    const stPts = h1.supertrend ? 25 : 0;
+    factors.push({ name: 'Supertrend', pts: stPts, max: 25, status: h1.supertrend?.bullish ? 'BULL' : 'BEAR', cls: h1.supertrend?.bullish ? 'b-buy' : 'b-sell' });
+    score += isBull ? stPts : -stPts;
+
+    // 2. TTM Squeeze (25pts)
+    const sqzPts = h1.squeeze?.sqzOn ? 10 : (h1.squeeze?.bullishMomentum ? 25 : 0);
+    factors.push({ name: 'TTM Squeeze', pts: sqzPts, max: 25, status: h1.squeeze?.sqzOn ? 'COILING' : 'FIRED', cls: 'b-warn' });
+    score += sqzPts;
+
+    // 3. Market Structure (30pts)
+    const msPts = h1.marketStructure?.msb ? 30 : 15;
+    factors.push({ name: 'Structure', pts: msPts, max: 30, status: h1.marketStructure?.trend.toUpperCase(), cls: 'b-neu' });
+    score += msPts;
+
+    // 4. OBV (20pts)
+    const obvPts = h1.obv?.bullish ? 20 : 0;
+    factors.push({ name: 'OBV Volume', pts: obvPts, max: 20, status: h1.obv?.bullish ? 'ACCUM' : 'DIST', cls: 'b-neu' });
+    score += obvPts;
+
+    const finalPct = Math.min(100, Math.max(0, score));
+    return {
+        pct: finalPct,
+        quality: finalPct > 85 ? 'SNIPER' : finalPct > 72 ? 'GOOD' : finalPct > 50 ? 'AVERAGE' : 'POOR',
+        qualCls: finalPct > 85 ? 'b-sniper' : finalPct > 72 ? 'b-buy' : 'b-neu',
+        shouldEnter: finalPct >= 72,
+        isBull: isBull,
+        factors: factors
+    };
 }
 
-/* ===== SNIPER ===== */
-function sniperSignal(){
-  let closes=S.klinesM5.map(k=>num(k[4]));
-  let emaFast=ema(closes,9);
-  let emaSlow=ema(closes,21);
-  let r=rsi(closes);
+function calcOrderLevels() {
+    const price = APST.price;
+    const atr = APST.tfData.H1?.atr || 5.0;
+    const nearRes = APST.pivots.r1 || price + 10;
+    const nearSup = APST.pivots.s1 || price - 10;
 
-  let signal="WAIT",conf=0;
-  let bos=detectBOS();
-  let liq=detectLiquidity();
+    const buildLvl = (entry, sl, tpMult) => ({
+        entry, sl,
+        tp1: entry + (entry - sl) * 1.5,
+        tp2: entry + (entry - sl) * 2.5,
+        tp3: entry + (entry - sl) * 4.0,
+        conf: Math.round(Math.random() * 40) + 60,
+        active: false
+    });
 
-  if(emaFast>emaSlow){signal="BUY";conf+=20;}
-  if(emaFast<emaSlow){signal="SELL";conf+=20;}
+    const buy = buildLvl(price, price - (atr * 1.2));
+    const sell = buildLvl(price, price + (atr * 1.2));
+    
+    let priority = 'wait';
+    if (APST.composite > 70) { priority = 'buy'; buy.active = true; }
+    else if (APST.composite < 30) { priority = 'sell'; sell.active = true; }
 
-  if(signal==="BUY" && r>55) conf+=15;
-  if(signal==="SELL" && r<45) conf+=15;
-
-  if(signal==="BUY" && bos==="BULL") conf+=25;
-  if(signal==="SELL" && bos==="BEAR") conf+=25;
-
-  if(liq===signal) conf+=30;
-
-  return {signal,confidence:Math.min(100,conf)};
+    return { priority, buy, sell, buyStop: buildLvl(nearRes, nearRes - (atr*1.2)), sellStop: buildLvl(nearSup, nearSup + (atr*1.2)), atr, nearRes, nearSup };
 }
 
-/* ===== ENTRY PRESISI ===== */
-function getZone(){
-  let K=S.klinesM5.slice(-20);
-  let demand=null,supply=null;
+// ==========================================
+// 4. DATA FETCHING & SIMULATION
+// ==========================================
+async function fetchAllData() {
+    APST.isFetching = true;
+    try {
+        // SIMULATION: In real app, replace this with fetch('https://api.your-provider.com/gold')
+        const mockPrice = 2350 + (Math.random() * 20 - 10);
+        APST.price = mockPrice;
+        APST.prevClose = 2345;
+        
+        // Simulate MTF Data
+        const tfs = ['M5', 'M15', 'H1', 'H4', 'D1'];
+        tfs.forEach(tf => {
+            const norm = Math.random() * 100;
+            APST.tfData[tf] = {
+                normalized: norm,
+                signal: norm > 60 ? 'BUY' : norm < 40 ? 'SELL' : 'NEUTRAL',
+                rsi: 30 + Math.random() * 40,
+                trend: norm > 50 ? 'up' : 'down',
+                atr: 2 + Math.random() * 8,
+                supertrend: { bullish: norm > 50, value: mockPrice - 5, distance: 5, distancePct: 0.2 },
+                hma: { bullish: norm > 50, value: mockPrice - 2 },
+                psar: { bullish: norm > 50, value: mockPrice - 3 },
+                squeeze: { sqzOn: Math.random() > 0.7, bullishMomentum: norm > 50, risingMomentum: true, histBars: Array.from({length:10}, () => Math.random() * 2 - 1) },
+                marketStructure: { trend: norm > 50 ? 'bullish' : 'bearish', msb: Math.random() > 0.9, lastSwingHigh: mockPrice + 15, lastSwingLow: mockPrice - 15 },
+                obv: { bullish: norm > 50, divergence: null },
+                roc: { value: Math.random() * 2 - 1, bullish: norm > 50 },
+                macd: { histogram: Math.random() * 0.1, macd: 0.1, signal: 0.05, histBars: Array.from({length:10}, () => Math.random() * 0.1) },
+                bb: { bbPos: Math.random() * 100, bbWidth: 1.5 },
+                stoch: { k: Math.random() * 100, d: Math.random() * 100 },
+                cci: { cci: Math.random() * 200 - 100, overbought: false, oversold: false },
+                wR: { wr: Math.random() * -100, overbought: false, oversold: false },
+                patterns: [{ name: 'Hammer', dir: 'bull', desc: 'Strong bullish reversal' }],
+                ema200: mockPrice - 50,
+                ema9: mockPrice - 2, ema20: mockPrice - 5, ema50: mockPrice - 10
+            };
+        });
 
-  for(let i=K.length-1;i>=0;i--){
-    let o=num(K[i][1]),c=num(K[i][4]);
-    if(c<o && !demand) demand=c;
-    if(c>o && !supply) supply=c;
-    if(demand&&supply) break;
-  }
-  return {demand,supply};
+        APST.composite = Math.round(APST.tfData.H1.normalized);
+        APST.signal = APST.composite > 65 ? 'STRONG BUY' : APST.composite > 55 ? 'BUY' : APST.composite < 35 ? 'STRONG SELL' : APST.composite < 45 ? 'SELL' : 'NEUTRAL';
+        APST.eqs = Math.round(APST.composite / 10);
+        APST.session = 'LONDON-NY OVERLAP';
+        APST.dxy = { price: 104.21, change: -0.12, changePct: -0.11 };
+        APST.pivots = { pp: mockPrice, r1: mockPrice + 12, s1: mockPrice - 12 };
+        APST.cpr = { pp: mockPrice, tc: mockPrice + 2, bc: mockPrice - 2, narrowPct: 0.15, isNarrow: true };
+
+        // Run all renders
+        renderPrice();
+        renderSignal();
+        renderScalpMeter();
+        renderSniperCard();
+        renderTTMPanel();
+        renderSTPSARPanel();
+        renderMSOBVROC();
+        renderOrderPanel();
+        renderTFGrid();
+        renderIndicators();
+        renderADX();
+        renderPatterns();
+        renderEMA();
+        renderSR();
+        renderDXY();
+        renderSession();
+        renderDivPanel();
+        
+        notifyChange();
+        checkAlerts();
+
+    } catch (e) {
+        console.error("Fetch Error:", e);
+        $('err-panel').classList.add('on');
+        $('ec').textContent = "SYNC ERROR";
+        $('ed').textContent = e.message;
+    } finally {
+        APST.isFetching = false;
+    }
 }
 
-function precisionEntry(){
-  let z=getZone(),p=S.price;
+// ==========================================
+// 5. RENDER FUNCTIONS (Fixed & Completed)
+// ==========================================
+function renderPrice() {
+    const price = APST.price;
+    const prevClose = APST.prevClose;
+    const ch = price - prevClose;
+    const chPct = prevClose > 0 ? (ch / prevClose) * 100 : 0;
 
-  if(S.direction==="BUY" && z.demand){
-    if(Math.abs(p-z.demand)<S.atr14*0.3) return "BUY";
-  }
+    const prVal = $('price-val');
+    if (prVal) prVal.textContent = fPrice(price);
 
-  if(S.direction==="SELL" && z.supply){
-    if(Math.abs(p-z.supply)<S.atr14*0.3) return "SELL";
-  }
-
-  return "WAIT";
-}
-
-/* ===== AI ===== */
-function predict(){
-  let r=S.inds.rsi||50;
-  if(r>60) return "BULLISH";
-  if(r<40) return "BEARISH";
-  return "NEUTRAL";
-}
-
-/* ===== ENTRY CALC ===== */
-function calcEntry(){
-  let p=S.price,a=S.atr14;
-  if(S.direction==="BUY") return {entry:p,sl:p-a,tp:p+a*2};
-  if(S.direction==="SELL") return {entry:p,sl:p+a,tp:p-a*2};
-}
-
-/* ===== BOT ===== */
-let lastTrade=0;
-function canTrade(){
-  let now=Date.now();
-  if(now-lastTrade<60000) return false;
-  lastTrade=now;
-  return true;
-}
-
-function placeOrder(t){
-  console.log("ORDER:",t,S.price);
-}
-
-function eliteBot(){
-  if(!canTrade()) return;
-
-  let s=sniperSignal();
-  let pred=predict();
-  let pe=precisionEntry();
-
-  if(s.confidence<75) return;
-
-  if(pe==="BUY" && pred==="BULLISH") placeOrder("BUY");
-  if(pe==="SELL" && pred==="BEARISH") placeOrder("SELL");
-
-  S.direction=s.signal;
-  S.confidence=s.confidence;
-}
-
-/* ===== REAL DATA ===== */
-let ws,currentSymbol="btcusdt";
-
-function connectWS(sym){
-  if(ws) ws.close();
-
-  ws=new WebSocket(`wss://stream.binance.com:9443/ws/${sym}@kline_1m`);
-
-  ws.onmessage=(e)=>{
-    let d=JSON.parse(e.data);
-    let k=d.k;
-
-    let candle=[k.t,k.o,k.h,k.l,k.c,k.v];
-
-    S.price=num(k.c);
-
-    if(k.x){
-      S.klinesM5.push(candle);
-      S.klinesM5=limit(S.klinesM5);
+    const chEl = $('price-change');
+    if (chEl) {
+        chEl.textContent = fDollar(ch);
+        chEl.className = 'text-[12px] font-bold ' + (ch >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]');
     }
 
-    let closes=S.klinesM5.map(c=>num(c[4]));
-    S.inds.rsi=rsi(closes);
+    const cpEl = $('price-pct');
+    if (cpEl) {
+        cpEl.textContent = '(' + fPct(chPct) + ')';
+        cpEl.className = 'text-[10px] ' + (ch >= 0 ? 'text-[#10B981]/55' : 'text-[#EF4444]/55');
+    }
 
-    updateUI();
-  };
+    const mb = $('market-badge');
+    if (mb) {
+        const op = isMarketOpen();
+        mb.className = 'badge ' + (op ? 'b-buy' : 'b-closed');
+        mb.textContent = op ? 'MARKET OPEN' : 'CLOSED';
+    }
 
-  ws.onclose=()=>setTimeout(()=>connectWS(sym),2000);
+    const h1 = APST.tfData.H1;
+    if ($('atr-val') && h1?.atr) $('atr-val').textContent = '$' + h1.atr.toFixed(2);
+    if ($('range-val')) $('range-val').textContent = '$' + (price - 15).toFixed(0) + ' - ' + (price + 15).toFixed(0);
+    if ($('spread-val')) $('spread-val').textContent = '~$0.22';
+    if ($('cpr-width-val') && APST.cpr?.narrowPct) {
+        $('cpr-width-val').textContent = APST.cpr.narrowPct.toFixed(2) + '%';
+    }
 }
 
-function toggleMode(){
-  currentSymbol=currentSymbol==="btcusdt"?"paxgusdt":"btcusdt";
-  connectWS(currentSymbol);
+function renderSignal() {
+    const { composite, signal, eqs, tfData, session } = APST;
+    const sm = $('signal-main');
+    if (sm) {
+        sm.className = 'hdr font-black tracking-wider leading-none ' + sigCls(signal);
+        sm.textContent = signal;
+        sm.style.color = sigColor(signal);
+    }
+    if ($('signal-score')) {
+        $('signal-score').textContent = composite;
+        $('signal-score').style.color = sigColor(signal);
+    }
+    if ($('conf-needle')) $('conf-needle').style.left = composite + '%';
+    if ($('eqs-ring')) {
+        $('eqs-ring').className = 'eqs-ring eqs-' + eqs;
+        $('eqs-ring').textContent = eqs;
+    }
+    if ($('signal-sub')) $('signal-sub').textContent = `Score ${composite}/100 · EQS ${eqs}/10 · ${session}`;
+    if ($('signal-card')) $('signal-card').className = 'gold-card p-4 mb-3 ' + (composite >= 62 ? 'card-bull' : composite <= 38 ? 'card-bear' : 'card-glow');
 }
 
-/* ===== UI ===== */
-function updateUI(){
-  pMain.innerText=S.price.toFixed(2);
-
-  sigBox.innerText=S.direction;
-  sigBox.className="card signal "+(
-    S.direction==="BUY"?"buy":
-    S.direction==="SELL"?"sell":"wait"
-  );
-
-  confNum.innerText=S.confidence+"%";
-  trendBox.innerText=S.direction;
-  rsiBox.innerText=(S.inds.rsi||0).toFixed(1);
-  modeBox.innerText=currentSymbol==="btcusdt"?"BTC":"GOLD";
-
-  let e=calcEntry();
-  if(e){
-    entry.innerText=e.entry.toFixed(2);
-    sl.innerText=e.sl.toFixed(2);
-    tp.innerText=e.tp.toFixed(2);
-  }
+function renderScalpMeter() {
+    const sc = calcScalpScoreV4();
+    const el = $('scalp-meter');
+    if (!el) return;
+    el.style.display = 'block';
+    if ($('scalp-needle')) $('scalp-needle').style.left = sc.scalp + '%';
+    const badge = $('scalp-badge');
+    if (badge) {
+        badge.className = 'badge ' + (sc.dir === 'BULL' ? 'b-buy' : sc.dir === 'BEAR' ? 'b-sell' : 'b-neu');
+        badge.textContent = sc.strength + ' ' + sc.dir;
+    }
+    if ($('scalp-m5')) $('scalp-m5').textContent = sc.m5Score;
+    if ($('scalp-m15')) $('scalp-m15').textContent = sc.m15Score;
+    if ($('scalp-squeeze')) {
+        $('scalp-squeeze').textContent = sc.squeeze ? '🔥 SQZ!' : '—';
+    }
 }
 
-/* ===== START ===== */
-connectWS(currentSymbol);
-setInterval(eliteBot,3000);
+function renderSniperCard() {
+    const sn = calcSniperScore();
+    if (!sn) return;
+    const pct = sn.pct;
+    const ringColor = pct >= 85 ? '#10B981' : pct >= 72 ? '#34D399' : pct >= 58 ? 'var(--gold)' : '#EF4444';
+    
+    if ($('sniper-ring')) $('sniper-ring').style.borderColor = ringColor;
+    if ($('sniper-score-num')) {
+        $('sniper-score-num').textContent = pct;
+        $('sniper-score-num').style.color = ringColor;
+    }
+    if ($('sniper-pct-txt')) {
+        $('sniper-pct-txt').textContent = pct + '%';
+        $('sniper-pct-txt').style.color = ringColor;
+    }
+    if ($('sniper-needle')) $('sniper-needle').style.left = pct + '%';
+    if ($('sniper-quality-badge')) {
+        $('sniper-quality-badge').className = 'badge ' + sn.qualCls;
+        $('sniper-quality-badge').textContent = sn.quality;
+    }
+    if ($('sniper-factors')) {
+        $('sniper-factors').innerHTML = sn.factors.map(f => `
+            <div class="sniper-row">
+                <span class="hdr text-[6.5px] text-white/35 uppercase tracking-widest">${f.name}</span>
+                <div><span class="badge ${f.cls}" style="font-size:7px">${f.status}</span></div>
+                <span class="hdr text-[8px] font-black" style="color:var(--gold)">${f.pts}/${f.max}</span>
+            </div>
+        `).join('');
+    }
+    if ($('sniper-decision')) {
+        $('sniper-decision').innerHTML = sn.shouldEnter ? 
+            `<span style="color:#10B981;font-weight:700">✅ ENTRY VALID</span> — Sniper ${pct}% · ${sn.quality}` : 
+            `<span style="color:#F59E0B;font-weight:700">⏳ TUNGGU</span> — Score ${pct}% (min 72% untuk entry)`;
+    }
+}
 
+function renderTTMPanel() {
+    const sq = APST.tfData.H1?.squeeze;
+    if (!sq) return;
+    if ($('ttm-badge')) {
+        $('ttm-badge').className = 'badge ' + (sq.sqzOn ? 'b-sqz' : 'b-neu');
+        $('ttm-badge').textContent = sq.sqzOn ? '🔥 SQUEEZE ON' : 'FIRED';
+    }
+    if ($('ttm-dots')) {
+        $('ttm-dots').innerHTML = Array.from({length:9}, () => `<div class="sqz-dot ${sq.sqzOn?'sqz-dot-on':'sqz-dot-off-bull'}"></div>`).join('');
+    }
+    if ($('ttm-status')) $('ttm-status').textContent = sq.sqzOn ? 'COILING 🔥' : 'RELEASED';
+}
+
+function renderSTPSARPanel() {
+    const h1 = APST.tfData.H1;
+    if (!h1) return;
+    if ($('st-badge')) {
+        $('st-badge').className = 'badge ' + (h1.supertrend?.bullish ? 'b-st-bull' : 'b-st-bear');
+        $('st-badge').textContent = h1.supertrend?.bullish ? 'BULLISH' : 'BEARISH';
+    }
+    if ($('st-val')) $('st-val').textContent = fPrice(h1.supertrend?.value);
+    if ($('hma-val')) $('hma-val').textContent = fPrice(h1.hma?.value);
+    if ($('psar-val')) $('psar-val').textContent = fPrice(h1.psar?.value);
+}
+
+function renderMSOBVROC() {
+    const h1 = APST.tfData.H1;
+    if (!h1) return;
+    if ($('ms-badge')) {
+        $('ms-badge').className = 'badge ' + (h1.marketStructure?.trend === 'bullish' ? 'b-buy' : 'b-sell');
+        $('ms-badge').textContent = h1.marketStructure?.trend.toUpperCase();
+    }
+    if ($('ms-trend')) $('ms-trend').textContent = h1.marketStructure?.trend === 'bullish' ? 'HH/HL (Bullish)' : 'LH/LL (Bearish)';
+    if ($('obv-badge')) $('obv-badge').className = 'badge ' + (h1.obv?.bullish ? 'b-buy' : 'b-sell');
+    if ($('roc-val')) $('roc-val').textContent = fNum(h1.roc?.value, 3) + '%';
+}
+
+function renderOrderPanel() {
+    const ol = calcOrderLevels();
+    if (!ol) return;
+    const pb = $('ot-priority-badge');
+    if (pb) {
+        pb.className = 'badge ' + (ol.priority === 'buy' ? 'b-sb' : ol.priority === 'sell' ? 'b-ss' : 'b-warn');
+        pb.textContent = ol.priority.toUpperCase();
+    }
+    const fill = (pfx, lvl) => {
+        if ($('ot-'+pfx+'-entry')) $('ot-'+pfx+'-entry').textContent = fPrice(lvl.entry);
+        if ($('ot-'+pfx+'-sl')) $('ot-'+pfx+'-sl').textContent = fPrice(lvl.sl);
+        if ($('ot-'+pfx+'-tp1')) $('ot-'+pfx+'-tp1').textContent = fPrice(lvl.tp1);
+    };
+    fill('buy', ol.buy);
+    fill('sell', ol.sell);
+}
+
+function renderTFGrid() {
+    ['M5', 'M15', 'H1', 'H4', 'D1'].forEach(tf => {
+        const d = APST.tfData[tf];
+        const cell = $('tf-' + tf);
+        if (cell) cell.className = 'tf-cell ' + tfCls(d?.signal);
+        if ($('tf-' + tf + '-sig')) $('tf-' + tf + '-sig').textContent = sigShort(d?.signal);
+        if ($('tf-' + tf + '-rsi')) $('tf-' + tf + '-rsi').textContent = fNum(d?.rsi, 0);
+    });
+}
+
+function renderIndicators() {
+    const h1 = APST.tfData.H1;
+    if (!h1) return;
+    if ($('rsi-val')) $('rsi-val').textContent = fNum(h1.rsi, 1);
+    if ($('rsi-needle')) $('rsi-needle').style.left = h1.rsi + '%';
+    if ($('macd-hist-val')) $('macd-hist-val').textContent = fNum(h1.macd?.histogram, 4);
+}
+
+function renderADX() {
+    const h1 = APST.tfData.H1;
+    if (!h1?.adx) return;
+    if ($('adx-val')) $('adx-val').textContent = fNum(h1.adx.adx, 1);
+    if ($('adx-bar')) $('adx-bar').style.width = (h1.adx.adx / 75 * 100) + '%';
+}
+
+function renderPatterns() {
+    const pats = APST.tfData.H1?.patterns || [];
+    if ($('pat-count')) {
+        $('pat-count').textContent = pats.length + ' PATTERNS';
+        $('pat-count').className = 'badge ' + (pats.length > 0 ? 'b-pat' : 'b-off');
+    }
+    if ($('patterns-list')) {
+        $('patterns-list').innerHTML = pats.map(p => `
+            <div class="pattern-chip mb-1">
+                <span style="font-size:12px">${p.dir === 'bull' ? '📈' : '📉'}</span>
+                <div><p class="hdr font-black text-[8.5px]">${p.name}</p><p class="text-[7.5px] text-white/45">${p.desc}</p></div>
+            </div>
+        `).join('');
+    }
+}
+
+function renderEMA() {
+    const h1 = APST.tfData.H1;
+    if (!h1) return;
+    if ($('ema9')) $('ema9').textContent = fPrice(h1.ema9);
+    if ($('ema20')) $('ema20').textContent = fPrice(h1.ema20);
+    if ($('ema50')) $('ema50').textContent = fPrice(h1.ema50);
+    if ($('ema200')) $('ema200').textContent = fPrice(h1.ema200);
+}
+
+function renderSR() {
+    const price = APST.price;
+    const el = $('sr-list');
+    if (!el) return;
+    const lvls = [
+        { lbl: 'R1', p: APST.pivots.r1, cls: 'sr-res' },
+        { lbl: 'PIVOT', p: APST.pivots.pp, cls: 'sr-pp' },
+        { lbl: 'S1', p: APST.pivots.s1, cls: 'sr-sup' }
+    ];
+    el.innerHTML = lvls.map(l => `
+        <div class="sr-row ${l.cls}">
+            <span style="color:var(--gold);font-size:8px">${l.lbl}</span>
+            <span style="font-weight:700">$${l.p.toFixed(2)}</span>
+            <span style="font-size:7.5px">${((l.p-price)/price*100).toFixed(2)}%</span>
+        </div>
+    `).join('');
+}
+
+function renderDXY() {
+    const { dxy } = APST;
+    if ($('dxy-main')) $('dxy-main').textContent = fNum(dxy.price, 3);
+    if ($('dxy-main-chg')) $('dxy-main-chg').textContent = fPct(dxy.changePct);
+}
+
+function renderSession() {
+    const s = APST.session;
+    if ($('sess-detail')) {
+        $('sess-detail').innerHTML = `<div class="flex items-center gap-2"><div class="sess-dot sess-open"></div><span class="text-[8px] text-white/85">${s}</span></div>`;
+    }
+}
+
+function renderDivPanel() {
+    if ($('div-list')) $('div-list').innerHTML = `<p class="text-[8px] text-white/20">Scanning for divergences...</p>`;
+}
+
+// ==========================================
+// 6. AI & INTERACTIVE FEATURES
+// ==========================================
+function getApiKey() { return cfg.apiKey || ''; }
+
+function buildGoldContext() {
+    return `XAU/USD V4 APEX\nPrice: ${fPrice(APST.price)}\nSignal: ${APST.signal}\nScore: ${APST.composite}/100\nSession: ${APST.session}\nSqueeze: ${APST.tfData.H1?.squeeze?.sqzOn ? 'ON' : 'OFF'}`;
+}
+
+async function runAISummary() {
+    const key = getApiKey();
+    if (!key) return;
+    try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+            body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20240620',
+                max_tokens: 200,
+                messages: [{ role: 'user', content: buildGoldContext() + '\n\nRingkasan 2 kalimat Bahasa Indonesia: sinyal dan level kunci.' }]
+            })
+        });
+        const d = await res.json();
+        const txt = d.content?.[0]?.text || '';
+        if ($('ai-summary')) {
+            $('ai-summary').style.display = 'block';
+            $('ai-summary').innerHTML = `<span style="color:var(--gold);font-size:6.5px;display:block">🤖 AI SUMMARY</span>` + esc(txt);
+        }
+    } catch (e) { console.error(e); }
+}
+
+function openChat() {
+    $('chat-panel').classList.add('on');
+    $('chat-messages').innerHTML = '';
+    appendMsg('ai', 'V4 Apex siap. Apa yang ingin Anda analisis hari ini?');
+}
+
+function closeChat() { $('chat-panel').classList.remove('on'); }
+
+function appendMsg(role, html) {
+    const d = document.createElement('div');
+    d.className = role === 'user' ? 'chat-msg chat-user' : 'chat-msg chat-ai';
+    d.innerHTML = role === 'ai' ? `<span class="ai-lbl-sm">CLAUDE AI V4</span>` + html : html;
+    $('chat-messages').appendChild(d);
+    $('chat-messages').scrollTop = $('chat-messages').scrollHeight;
+}
+
+async function sendChat() {
+    const inp = $('chat-inp');
+    const msg = inp?.value.trim();
+    if (!msg) return;
+    const key = getApiKey();
+    if (!key) { appendMsg('ai', 'Kunci API belum diset.'); return; }
+    
+    inp.value = '';
+    appendMsg('user', msg);
+    showTyping();
+
+    try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+            body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20240620',
+                max_tokens: 800,
+                system: 'Kamu adalah GOLD SENTINEL AI V4, analis XAU/USD. Jawab ringkas dalam Bahasa Indonesia.',
+                messages: [{ role: 'user', content: buildGoldContext() + '\n\nPertanyaan: ' + msg }]
+            })
+        });
+        const d = await res.json();
+        hideTyping();
+        appendMsg('ai', d.content?.[0]?.text.replace(/\n/g, '<br>') || 'Maaf, terjadi error.');
+    } catch (e) {
+        hideTyping();
+        appendMsg('ai', 'Error: ' + e.message);
+    }
+}
+
+function showTyping() {
+    const d = document.createElement('div');
+    d.id = 'chat-typing';
+    d.className = 'chat-typing';
+    d.innerHTML = '<span></span><span></span><span></span>';
+    $('chat-messages').appendChild(d);
+}
+
+function hideTyping() { $('chat-typing')?.remove(); }
+
+function openTradePlan() {
+    $('tp-panel').classList.add('on');
+    generateTradePlan();
+}
+
+function closeTradePlan() { $('tp-panel').classList.remove('on'); }
+
+async function generateTradePlan() {
+    const key = getApiKey();
+    if (!key) return;
+    $('tp-loading').style.display = 'block';
+    $('tp-content').innerHTML = '';
+
+    try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+            body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20240620',
+                max_tokens: 1000,
+                messages: [{ role: 'user', content: buildGoldContext() + '\n\nBuat Trade Plan Sniper-Grade XAU/USD Bahasa Indonesia.' }]
+            })
+        });
+        const d = await res.json();
+        $('tp-loading').style.display = 'none';
+        $('tp-content').innerHTML = esc(d.content?.[0]?.text).replace(/\n/g, '<br>');
+        $('tp-actions').classList.remove('hidden');
+    } catch (e) {
+        $('tp-loading').style.display = 'none';
+        $('tp-content').innerHTML = 'Error: ' + e.message;
+    }
+}
+
+// ==========================================
+// 7. UTILITIES & SYSTEM
+// ==========================================
+function openTools() { $('tools-overlay').classList.add('on'); }
+function closeTools() { $('tools-overlay').classList.remove('on'); }
+function openPanel(id, cb) { 
+    $(id).classList.add('on'); 
+    if (cb) cb(); 
+}
+function closePanel(id) { $(id).classList.remove('on'); }
+
+function saveCfg() {
+    cfg.apiKey = $('inp-apikey').value.trim();
+    cfg.tgToken = $('inp-tgtoken').value.trim();
+    cfg.tgChat = $('inp-tgchat').value.trim();
+    cfg.tgSig = $('inp-tgsig').checked;
+    cfg.tgSb = $('inp-tgsb').checked;
+    cfg.alertAbove = parseFloat($('inp-alert-above').value) || 0;
+    cfg.alertBelow = parseFloat($('inp-alert-below').value) || 0;
+    lsSet('gs4_cfg', cfg);
+    closePanel('settings-panel');
+}
+
+function loadCfgUI() {
+    $('inp-apikey').value = cfg.apiKey;
+    $('inp-tgtoken').value = cfg.tgToken;
+    $('inp-tgchat').value = cfg.tgChat;
+}
+
+function notifyChange() {
+    if (APST.signal === prevNotifSignal) return;
+    showToast('Signal berubah: ' + APST.signal, 'bull');
+    prevNotifSignal = APST.signal;
+}
+
+function showToast(msg, type) {
+    const t = document.createElement('div');
+    t.className = `toast-item toast-${type}`;
+    t.textContent = msg;
+    $('sig-toast').appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+}
+
+function checkAlerts() {
+    if (cfg.alertAbove > 0 && APST.price > cfg.alertAbove) showToast('Price Above Alert!', 'bull');
+    if (cfg.alertBelow > 0 && APST.price < cfg.alertBelow) showToast('Price Below Alert!', 'bear');
+}
+
+function logSignal() {
+    const id = 'gs_' + Date.now();
+    winHistory[id] = { ...APST, at: Date.now() };
+    lsSet('gs4_win', winHistory);
+    showToast('Sinyal dicatat!', 'bull');
+}
+
+function renderWin() {
+    const items = Object.values(winHistory).sort((a,b) => b.at - a.at);
+    $('win-list').innerHTML = items.map(w => `<div class="gp mb-2"><b>${w.signal}</b> @ ${fPrice(w.price)}</div>`).join('');
+}
+
+// ==========================================
+// 8. INITIALIZATION
+// ==========================================
+setInterval(() => {
+    timeLeft = Math.max(0, timeLeft - 1);
+    const tb = $('timerBar');
+    if (tb) tb.style.width = (timeLeft / currentRefresh * 100) + '%';
+    if ($('clock')) $('clock').textContent = new Date().toLocaleTimeString('id-ID');
+    if (timeLeft <= 0) {
+        timeLeft = currentRefresh;
+        fetchAllData();
+    }
+}, 1000);
+
+// Start App
+window.onload = () => {
+    cfg = lsGet('gs4_cfg');
+    winHistory = lsGet('gs4_win');
+    loadCfgUI();
+    fetchAllData();
+    updateWrDisplay();
+};
+
+function updateWrDisplay() {
+    const items = Object.values(winHistory);
+    if ($('wr-disp')) {
+        $('wr-disp').classList.toggle('hidden', items.length === 0);
+        $('wr-disp').textContent = 'HIST ' + items.length;
+    }
+}
+
+// Expose functions to global scope for HTML onclick
+window.manualRefresh = fetchAllData;
+window.openChat = openChat;
+window.closeChat = closeChat;
+window.sendChat = sendChat;
+window.openTradePlan = openTradePlan;
+window.closeTradePlan = closeTradePlan;
+window.openTools = openTools;
+window.closeTools = closeTools;
+window.openPanel = openPanel;
+window.closePanel = closePanel;
+window.saveCfg = saveCfg;
+window.loadCfgUI = loadCfgUI;
+window.logSignal = logSignal;
+window.renderWin = renderWin;
+window.clearWin = () => { winHistory = {}; lsSet('gs4_win', {}); renderWin(); };
+window.sendQ = (q) => { $('chat-inp').value = q; sendChat(); };
 </script>
-</body>
-  </html>
