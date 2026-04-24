@@ -406,7 +406,7 @@ select.si option{background:#0a0800;}
     <button onclick="openPanel('settings-panel',loadCfgUI)" class="text-[8px] text-[var(--gold)] border border-[var(--gold)]/28 px-3 py-1.5 rounded-full hdr tracking-wider">⚙ CFG</button>
   </div>
 </div>
-<div id="err-panel"><div class="ec" id="ec"></div><div class="ed" id="ed"></div><button id="retry-btn" onclick="manualRefresh()">↻ TAP RETRY — SCAN ULANG</button></div>
+<div id="err-panel"><div class="ec" id="ec"></div><div class="ed" id="ed"></div><button id="retry-btn" onclick="manualRefresh()">↻ RETRY</button></div>
 
 <!-- NEWS ALERT BANNER -->
 <div id="news-banner" class="hidden mb-3 rounded-2xl p-3 border border-[#F87171]/40 bg-[rgba(239,68,68,.04)]">
@@ -898,12 +898,34 @@ select.si option{background:#0a0800;}
 
 <script>
 
-// ── V5 NANO PATCH UTILITIES ──────────────────────────────────
-function safeSet(id,val,prop='textContent'){const el=document.getElementById(id);if(!el)return;if(prop==='textContent')el.textContent=val;else if(prop==='innerHTML')el.innerHTML=val;else if(prop==='className')el.className=val;}
-function showLoadingState(){['market-badge','ttm-badge','sniper-quality-badge','ot-priority-badge','vwap-badge','liq-badge','ob-badge','ichi-badge','corr-badge','news-badge','div-main-badge'].forEach(id=>{const el=document.getElementById(id);if(el){el.className='badge b-closed';el.textContent='LOADING';}});}
-let _autoRetryTimer=null;
-function scheduleRetry(secs){if(_autoRetryTimer)clearTimeout(_autoRetryTimer);_autoRetryTimer=setTimeout(()=>{if(!APST.isFetching&&APST.retryCount<=4){setApiSt('RETRY '+APST.retryCount+'...');fetchAllData();}},secs*1000);}
-function renderPartial(){try{if(APST.price>0){renderPrice();renderSession();const pc=document.getElementById('price-card');if(pc)pc.className='gold-card p-4 mb-3 card-glow';}}catch(e){}}
+// ── V5 PATCH UTILITIES ──────────────────────────────────────────
+function safeSet(id,val,prop){var el=document.getElementById(id);if(!el)return;prop=prop||'textContent';if(prop==='textContent')el.textContent=val;else if(prop==='innerHTML')el.innerHTML=val;else if(prop==='className')el.className=val;}
+
+function showLoadingState(){
+  ['market-badge','ttm-badge','sniper-quality-badge','ot-priority-badge',
+   'vwap-badge','liq-badge','ob-badge','ichi-badge','corr-badge','news-badge','div-main-badge'
+  ].forEach(function(id){var el=document.getElementById(id);if(el){el.className='badge b-closed';el.textContent='LOADING';}});
+}
+
+var _autoRetryTimer=null;
+function scheduleRetry(secs){
+  if(_autoRetryTimer)clearTimeout(_autoRetryTimer);
+  _autoRetryTimer=setTimeout(function(){
+    if(!APST.isFetching&&APST.retryCount<=4){
+      setApiSt('RETRY '+APST.retryCount+'...');
+      fetchAllData();
+    }
+  },secs*1000);
+}
+
+function renderPartial(){
+  try{
+    if(APST.price>0){renderPrice();renderSession();}
+    var pc=document.getElementById('price-card');
+    if(pc)pc.className='gold-card p-4 mb-3 card-glow';
+  }catch(e){}
+}
+
 function manualRefresh(){
   APST.isFetching=false;
   APST.retryCount=0;
@@ -912,7 +934,8 @@ function manualRefresh(){
   timeLeft=1;
   fetchAllData();
 }
-// ─────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────
+
 // ============================================================
 // GOLD SENTINEL V5 APEX — COMPLETE JS ENGINE
 // All 15 upgraded engines: OB, FVG, VWAP, VolDelta, Ichimoku,
@@ -936,32 +959,23 @@ const APST={
   price:0,prevClose:0,dayHigh:0,dayLow:0,
   composite:50,signal:'NEUTRAL',eqs:5,
   session:'Asia',
-  dxy:{price:0,change:0,changePct:0},
   tfData:{M5:null,M15:null,H1:null,H4:null,D1:null},
+  // Price data
+  dxy:{price:0,change:0,changePct:0},
   pivots:{},fibLevels:{},cpr:{},
-  // V5 NEW
-  orderBlocks:[],fvgList:[],
-  liquidityZones:{eqH:null,eqL:null,sweeps:[]},
-  vwap:{intraday:null,anchored:null},
-  volumeDelta:{buyPct:50,sellPct:50,climax:false,absorption:false,imbalance:false},
-  volatilityRegime:{label:'NORMAL',ratio:1,pct:50,scalp:'NORMAL'},
-  ichimoku:{tenkan:null,kijun:null,senkouA:null,senkouB:null,chikou:null,kumoColor:'',bullish:false},
-  smcBias:{zone:'EQUILIBRIUM',eq:0,posPct:50},
-  newsEvents:[],correlations:{},
-  candleConfirm:{confirmed:false,pattern:'—',desc:'—'},
-  isFetching:false,retryCount:0,
-  newsEvents:[],
-  correlations:{dxy:null,spx:null,oil:null,us10y:null},
+  // V5 engines - all pre-initialized to prevent null crashes
   orderBlocks:[],
   fvgList:[],
-  liquidityZones:{eqH:null,eqL:null,sweeps:[],desc:'',nearEqH:false,nearEqL:false},
-  smcBias:{zone:'EQUILIBRIUM',eq:0,posPct:50},
-  vwap:{intraday:null,anchored:null,bullishBias:null,intraDist:null,anchDist:null},
+  liquidityZones:{eqH:null,eqL:null,sweeps:[],desc:'Memuat...',nearEqH:false,nearEqL:false},
+  vwap:{intraday:null,anchored:null,bullishBias:null,intraDist:null,anchDist:null,aboveIntra:null,aboveAnchored:null},
   volumeDelta:{buyPct:50,sellPct:50,climax:false,absorption:false,imbalance:false,pressure:'BALANCED'},
   volatilityRegime:{label:'NORMAL',ratio:1,pct:50,scalp:'NORMAL',mult:1.2,atrNow:20,bbWidth:1},
+  smcBias:{zone:'EQUILIBRIUM',eq:0,posPct:50,range:0},
   candleConfirm:{confirmed:false,pattern:'—',desc:'—',closePos:'—',rejection:'CLEAN'},
-  dxy:{price:0,change:0,changePct:0},
-  pivots:{},fibLevels:{},cpr:{}
+  newsEvents:[],
+  correlations:{dxy:null,spx:null,oil:null,us10y:null},
+  isFetching:false,
+  retryCount:0
 };
 
 function lsGet(k,d=null){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
@@ -2217,10 +2231,6 @@ function openPanel(id,cb){const el=$(id);if(el)el.classList.add('on');if(cb)cb()
 function closePanel(id){$(id)?.classList.remove('on');}
 function loadCfgUI(){$('inp-apikey').value=cfg.apiKey||'';$('inp-tgtoken').value=cfg.tgToken||'';$('inp-tgchat').value=cfg.tgChat||'';$('inp-tgsig').checked=cfg.tgSig||false;$('inp-tgsb').checked=cfg.tgSb||false;if($('inp-tgnews'))$('inp-tgnews').checked=cfg.tgNews||false;$('inp-alert-above').value=cfg.alertAbove||'';$('inp-alert-below').value=cfg.alertBelow||'';}
 function saveCfg(){cfg.apiKey=$('inp-apikey').value.trim();cfg.tgToken=$('inp-tgtoken').value.trim();cfg.tgChat=$('inp-tgchat').value.trim();cfg.tgSig=$('inp-tgsig').checked;cfg.tgSb=$('inp-tgsb').checked;cfg.tgNews=$('inp-tgnews')?.checked||false;cfg.alertAbove=parseFloat($('inp-alert-above').value)||0;cfg.alertBelow=parseFloat($('inp-alert-below').value)||0;alertAboveFired=false;alertBelowFired=false;lsSet('gs4_cfg',cfg);closePanel('settings-panel');if(cfg.apiKey&&APST.price)runAISummary();}
-// manualRefresh defined above
-  timeLeft=1;
-  fetchAllData();
-}
 
 // ============================================================
 // TIMER LOOP
