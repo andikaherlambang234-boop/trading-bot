@@ -406,7 +406,7 @@ select.si option{background:#0a0800;}
     <button onclick="openPanel('settings-panel',loadCfgUI)" class="text-[8px] text-[var(--gold)] border border-[var(--gold)]/28 px-3 py-1.5 rounded-full hdr tracking-wider">⚙ CFG</button>
   </div>
 </div>
-<div id="err-panel"><div class="ec" id="ec"></div><div class="ed" id="ed"></div><button id="retry-btn" onclick="manualRefresh()">↻ TAP UNTUK RETRY</button></div>
+<div id="err-panel"><div class="ec" id="ec"></div><div class="ed" id="ed"></div><button id="retry-btn" onclick="manualRefresh()">↻ TAP RETRY — SCAN ULANG</button></div>
 
 <!-- NEWS ALERT BANNER -->
 <div id="news-banner" class="hidden mb-3 rounded-2xl p-3 border border-[#F87171]/40 bg-[rgba(239,68,68,.04)]">
@@ -898,13 +898,20 @@ select.si option{background:#0a0800;}
 
 <script>
 
-// ── V5 PATCH UTILITIES ───────────────────────────────────────
+// ── V5 NANO PATCH UTILITIES ──────────────────────────────────
 function safeSet(id,val,prop='textContent'){const el=document.getElementById(id);if(!el)return;if(prop==='textContent')el.textContent=val;else if(prop==='innerHTML')el.innerHTML=val;else if(prop==='className')el.className=val;}
-function showLoadingState(){['market-badge','ttm-badge','sniper-quality-badge','ot-priority-badge'].forEach(id=>{const el=document.getElementById(id);if(el){el.className='badge b-closed';el.textContent='LOADING';}});}
+function showLoadingState(){['market-badge','ttm-badge','sniper-quality-badge','ot-priority-badge','vwap-badge','liq-badge','ob-badge','ichi-badge','corr-badge','news-badge','div-main-badge'].forEach(id=>{const el=document.getElementById(id);if(el){el.className='badge b-closed';el.textContent='LOADING';}});}
 let _autoRetryTimer=null;
 function scheduleRetry(secs){if(_autoRetryTimer)clearTimeout(_autoRetryTimer);_autoRetryTimer=setTimeout(()=>{if(!APST.isFetching&&APST.retryCount<=4){setApiSt('RETRY '+APST.retryCount+'...');fetchAllData();}},secs*1000);}
 function renderPartial(){try{if(APST.price>0){renderPrice();renderSession();const pc=document.getElementById('price-card');if(pc)pc.className='gold-card p-4 mb-3 card-glow';}}catch(e){}}
-function manualRefresh(){APST.retryCount=0;if(_autoRetryTimer){clearTimeout(_autoRetryTimer);_autoRetryTimer=null;}showLoadingState();if(!APST.isFetching){timeLeft=2;fetchAllData();}}
+function manualRefresh(){
+  APST.isFetching=false;
+  APST.retryCount=0;
+  if(_autoRetryTimer){clearTimeout(_autoRetryTimer);_autoRetryTimer=null;}
+  showLoadingState();
+  timeLeft=1;
+  fetchAllData();
+}
 // ─────────────────────────────────────────────────────────────
 // ============================================================
 // GOLD SENTINEL V5 APEX — COMPLETE JS ENGINE
@@ -943,7 +950,18 @@ const APST={
   newsEvents:[],correlations:{},
   candleConfirm:{confirmed:false,pattern:'—',desc:'—'},
   isFetching:false,retryCount:0,
-  newsEvents:[],correlations:{dxy:null,spx:null,oil:null,us10y:null}
+  newsEvents:[],
+  correlations:{dxy:null,spx:null,oil:null,us10y:null},
+  orderBlocks:[],
+  fvgList:[],
+  liquidityZones:{eqH:null,eqL:null,sweeps:[],desc:'',nearEqH:false,nearEqL:false},
+  smcBias:{zone:'EQUILIBRIUM',eq:0,posPct:50},
+  vwap:{intraday:null,anchored:null,bullishBias:null,intraDist:null,anchDist:null},
+  volumeDelta:{buyPct:50,sellPct:50,climax:false,absorption:false,imbalance:false,pressure:'BALANCED'},
+  volatilityRegime:{label:'NORMAL',ratio:1,pct:50,scalp:'NORMAL',mult:1.2,atrNow:20,bbWidth:1},
+  candleConfirm:{confirmed:false,pattern:'—',desc:'—',closePos:'—',rejection:'CLEAN'},
+  dxy:{price:0,change:0,changePct:0},
+  pivots:{},fibLevels:{},cpr:{}
 };
 
 function lsGet(k,d=null){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
@@ -1475,7 +1493,7 @@ function calcSniperV5(){
   add('Market Structure',pts4,12,ms?ms.trend.toUpperCase()+(ms.msb?' MSB!':''):'—',pts4>=8?'b-buy':'b-warn');
 
   // 5. Order Block Proximity (12pts) — NEW V5
-  const obs=APST.orderBlocks;let pts5=0;let obStatus='NO OB';
+  const obs=APST.orderBlocks||[];let pts5=0;let obStatus='NO OB';
   const nearBullOB=obs.find(ob=>ob.type==='bull'&&!ob.mitigated&&Math.abs(ob.dist)<h1.atr*1.5);
   const nearBearOB=obs.find(ob=>ob.type==='bear'&&!ob.mitigated&&Math.abs(ob.dist)<h1.atr*1.5);
   if(isBull&&nearBullOB){pts5=nearBullOB.dist<0?12:8;obStatus='BULL OB '+fPrice(nearBullOB.mid);}
@@ -1541,7 +1559,7 @@ function calcOrderLevelsV5(){
   if(pivots.s1)lvls.push({p:pivots.s1,type:'sup'});if(pivots.s2)lvls.push({p:pivots.s2,type:'sup'});
   if(cpr?.tc)lvls.push({p:cpr.tc,type:'res'});if(cpr?.bc)lvls.push({p:cpr.bc,type:'sup'});
   // V5: Add OB levels
-  const obs=APST.orderBlocks;
+  const obs=APST.orderBlocks||[];
   obs.filter(ob=>!ob.mitigated).forEach(ob=>{lvls.push({p:ob.high,type:ob.type==='bull'?'res':'res'});lvls.push({p:ob.low,type:ob.type==='bull'?'sup':'sup'});});
   // V5: Add VWAP levels
   if(h1.vwap?.intraday)lvls.push({p:h1.vwap.intraday,type:price>h1.vwap.intraday?'sup':'res'});
@@ -1586,32 +1604,26 @@ const PROXIES=[
   'https://api.codetabs.com/v1/proxy?quest='
 ];
 
-async function fetchWithProxy(url, timeout=11000){
+async function fetchWithProxy(url, timeout=6000){
   const tryFetch=async(fullUrl)=>{
     const ctrl=new AbortController();
     const t=setTimeout(()=>ctrl.abort(),timeout);
     try{
-      const r=await fetch(fullUrl,{
-        signal:ctrl.signal,
-        cache:'no-store',
-        headers:{'Accept':'application/json','Cache-Control':'no-cache'}
-      });
+      const r=await fetch(fullUrl,{signal:ctrl.signal,cache:'no-store'});
       clearTimeout(t);
       if(!r.ok)return null;
       const txt=await r.text();
-      if(!txt||txt.length<10)return null;
+      if(!txt||txt.length<20)return null;
       try{return JSON.parse(txt);}catch(e){return null;}
     }catch(e){clearTimeout(t);return null;}
   };
-  // Try each proxy
-  for(const proxy of PROXIES){
+  // Try only first 2 proxies fast, then direct
+  const quickProxies=[PROXIES[0],PROXIES[1]];
+  for(const proxy of quickProxies){
     const result=await tryFetch(proxy+encodeURIComponent(url));
     if(result)return result;
   }
-  // Direct (works in some browsers without CORS issue)
-  const result=await tryFetch(url);
-  if(result)return result;
-  return null;
+  return await tryFetch(url); // direct as last resort
 }
 
 function parseYahooCandles(data){
@@ -1636,7 +1648,6 @@ async function fetchYahoo(sym,interval,range){
   const urls=[
     `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=${interval}&range=${range}&includePrePost=false`,
     `https://query2.finance.yahoo.com/v8/finance/chart/${encoded}?interval=${interval}&range=${range}&includePrePost=false`,
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=${interval}&range=${range}`,
   ];
   for(const url of urls){
     const d=await fetchWithProxy(url);
@@ -1660,17 +1671,17 @@ async function fetchAllData(){
     // ── PHASE 1: Fetch H1 (most important) ──────────────────
     setApiSt('FETCHING H1...');
     let h1c=null;
+    // Fast attempts: only 3, short timeout per proxy = max ~36s worst case
     const h1attempts=[
-      ()=>fetchYahoo('GC=F','1h','3mo'),
       ()=>fetchYahoo('GC=F','1h','1mo'),
       ()=>fetchYahoo('GC=F','60m','1mo'),
-      ()=>fetchYahoo('XAUUSD=X','1h','1mo'),
       ()=>fetchYahoo('GC=F','1h','5d'),
     ];
     for(const attempt of h1attempts){
       h1c=await attempt();
-      if(h1c&&h1c.length>=15)break;
+      if(h1c&&h1c.length>=15){setApiSt('DATA OK ✓');break;}
       h1c=null;
+      setApiSt('RETRY...');
     }
     if(!h1c||h1c.length<15){
       throw new Error('Data XAU/USD tidak bisa dimuat. Periksa koneksi lalu tap ↻ SCAN');
@@ -1989,8 +2000,8 @@ function renderSignal(){
     if(h1?.marketStructure?.msb)html+='<span class="badge b-msb">MSB!</span>';
     if(h1?.squeeze?.sqzOn)html+='<span class="badge b-sqz">SQZ🔥</span>';
     const adx=h1?.adx;if(adx?.isStrong)html+='<span class="badge b-trend-str">ADX STRONG</span>';
-    if(APST.orderBlocks.some(ob=>!ob.mitigated))html+='<span class="badge b-ob-bull">OB ACTIVE</span>';
-    if(APST.fvgList.some(f=>!f.filled))html+='<span class="badge b-fvg">FVG</span>';
+    if((APST.orderBlocks||[]).some(ob=>!ob.mitigated))html+='<span class="badge b-ob-bull">OB ACTIVE</span>';
+    if((APST.fvgList||[]).some(f=>!f.filled))html+='<span class="badge b-fvg">FVG</span>';
     if(APST.liquidityZones.sweeps?.length>0)html+='<span class="badge b-sweep">SWEEP!</span>';
     if(h1?.ichimoku?.bullish)html+='<span class="badge b-ichi-bull">ICHI BULL</span>';
     else if(h1?.ichimoku?.bearish)html+='<span class="badge b-ichi-bear">ICHI BEAR</span>';
@@ -2097,7 +2108,7 @@ function renderSR(){
   if(h1?.vwap?.intraday)lvls.push({p:h1.vwap.intraday,lbl:'VWAP',cls:'sr-vwap'});
   if(h1?.vwap?.anchored)lvls.push({p:h1.vwap.anchored,lbl:'AVWAP',cls:'sr-vwap'});
   // V5: Add OB midpoints
-  APST.orderBlocks.filter(ob=>!ob.mitigated).forEach(ob=>lvls.push({p:ob.mid,lbl:ob.type==='bull'?'Bull OB':'Bear OB',cls:'sr-ob'}));
+  (APST.orderBlocks||[]).filter(ob=>!ob.mitigated).forEach(ob=>lvls.push({p:ob.mid,lbl:ob.type==='bull'?'Bull OB':'Bear OB',cls:'sr-ob'}));
   lvls.sort((a,b)=>b.p-a.p);
   const isNear=l=>Math.abs(l-price)/price<.003;
   el.innerHTML=lvls.map(l=>{const dist=((l.p-price)/price)*100,near=isNear(l.p),col=l.cls==='sr-res'?'#F87171':l.cls==='sr-sup'?'#10B981':l.cls==='sr-pp'?'var(--gold)':l.cls==='sr-fib'?'#A78BFA':l.cls==='sr-ob'?'#EC4899':'#06B6D4';return'<div class="sr-row '+l.cls+(near?' sr-near':'')+'"><span style="color:'+col+';font-size:8px;font-family:\'Orbitron\',sans-serif">'+esc(l.lbl)+(near?' ◀':'')+'</span><span style="font-family:\'Orbitron\',sans-serif;font-size:9.5px;font-weight:700">$'+l.p.toFixed(2)+'</span><span style="font-size:7.5px;color:'+(dist>=0?'#F87171':'#10B981')+'">'+(dist>=0?'+':'')+dist.toFixed(2)+'%</span></div>';}).join('');
@@ -2125,7 +2136,7 @@ function buildCtxV5(){
   const snCtx=sn?'\nSNIPER V5: '+sn.pct+'% ('+sn.quality+') enter:'+sn.shouldEnter:'';
   const v4=h1?'\nST:'+(h1.supertrend?(h1.supertrend.bullish?'BULL':'BEAR')+(h1.supertrend.justBullCross?' FRESH':''):'N/A')+' HMA:'+(h1.hma?(h1.hma.bullish?'UP':'DOWN'):'N/A')+' PSAR:'+(h1.psar?(h1.psar.bullish?'BELOW':'ABOVE'):'N/A')+' TTM:'+(h1.squeeze?(h1.squeeze.sqzOn?'ON':'OFF '+(h1.squeeze.bullishMomentum?'BULL':'BEAR')):'N/A')+' MS:'+(h1.marketStructure?h1.marketStructure.trend.toUpperCase()+(h1.marketStructure.msb?' MSB!':''):'N/A'):'';
   const v5Ctx='\nV5 ENGINES:'+'\nOB:'+APST.orderBlocks.slice(0,2).map(ob=>ob.type.toUpperCase()+'@$'+ob.mid.toFixed(2)+(ob.mitigated?'[MIT]':'')).join(',')+'\nFVG:'+APST.fvgList.slice(0,2).map(f=>f.type.toUpperCase()+'@$'+f.mid.toFixed(2)).join(',')+'\nLIQ:'+APST.liquidityZones.desc.substring(0,60)+'\nVWAP:'+(h1?.vwap?'INTRA=$'+h1.vwap.intraday?.toFixed(2)+(h1.vwap.bullishBias?'(ABOVE)':'(BELOW)'):'N/A')+'\nVOL_DELTA:'+(APST.volumeDelta.pressure||'N/A')+(APST.volumeDelta.climax?' CLIMAX!':'')+'\nICHI:'+(h1?.ichimoku?(h1.ichimoku.bullish?'FULL BULL':h1.ichimoku.bearish?'FULL BEAR':'SCORE:'+h1.ichimoku.score):'N/A')+'\nHIDDEN_DIV:'+((h1?.hiddenDivs||[]).map(d=>d.type.replace('_',' ')).join(',') ||'NONE')+'\nVOL_REGIME:'+APST.volatilityRegime.label+' x'+APST.volatilityRegime.ratio+'\nSMC_BIAS:'+APST.smcBias.zone+' ('+APST.smcBias.posPct+'%)'+'\nCANDLE_CONF:'+(APST.candleConfirm.confirmed?'CONFIRMED:'+APST.candleConfirm.pattern:'PENDING:'+APST.candleConfirm.pattern);
-  const newsCtx=APST.newsEvents.length>0?'\nNEWS:'+APST.newsEvents.slice(0,2).map(n=>n.name+'('+n.impact+','+Math.max(0,n.diffMins)+'min)').join(','):'';
+  const newsCtx=(APST.newsEvents||[]).length>0?'\nNEWS:'+(APST.newsEvents||[]).slice(0,2).map(n=>n.name+'('+n.impact+','+Math.max(0,n.diffMins)+'min)').join(','):'';
   const cprCtx=cpr?.pp?'\nCPR: PP='+fPrice(cpr.pp)+',TC='+fPrice(cpr.tc)+',BC='+fPrice(cpr.bc):'';
   return'XAU/USD V5 APEX:\nPrice: $'+price.toFixed(2)+' | Change: '+ch.toFixed(2)+'%\nSignal: '+signal+' | Score: '+composite+'/100 | EQS: '+eqs+'/10\nSession: '+session+' | DXY: '+(dxy.price?fNum(dxy.price,3):'N/A')+' ('+fPct(dxy.changePct)+')\nMTF: '+tf+(h1?'\nH1: RSI='+fNum(h1.rsi,1)+' MACD='+(h1.macd?.histogram>=0?'+':'')+(h1.macd?h1.macd.histogram.toFixed(4):'N/A')+' BB%='+(h1.bb?Math.round(h1.bb.bbPos)+'%':'N/A')+' ADX='+(h1.adx?h1.adx.adx.toFixed(1):'N/A'):'')+(h1?.ema200?'\nEMA200=$'+h1.ema200.toFixed(2):'')+(pivots.pp?'\nPivot PP=$'+pivots.pp.toFixed(2)+' R1=$'+pivots.r1.toFixed(2)+' S1=$'+pivots.s1.toFixed(2):'')+cprCtx+v4+v5Ctx+oCtx+snCtx+newsCtx;
 }
@@ -2139,7 +2150,7 @@ function openChat(){
   $('chat-panel')?.classList.add('on');const ctx=$('chat-ctx-lbl');if(ctx)ctx.textContent='XAU/USD · '+APST.composite+'/100 · '+APST.session;
   $('chat-messages').innerHTML='';chatHistory=[];
   const sn=calcSniperV5(),ol=calcOrderLevelsV5(),h1=APST.tfData.H1,ichi=h1?.ichimoku,cc=APST.candleConfirm;
-  appendMsg('ai','XAU/USD V5 siap.<br>Signal: <b style="color:'+sigColor(APST.signal)+'">'+APST.signal+'</b> · Score: '+APST.composite+'/100 · EQS: '+APST.eqs+'/10'+(sn?'<br>Sniper V5: <b style="color:'+(sn.pct>=72?'#10B981':'var(--gold)')+'">'+sn.pct+'% '+sn.quality+'</b>':'')+(ol?' · Priority: <b style="color:var(--gold)">'+ol.priority.toUpperCase()+'</b>':'')+(APST.orderBlocks.some(ob=>!ob.mitigated)?' · <span style="color:#EC4899">OB ACTIVE</span>':'')+(h1?.squeeze?.sqzOn?' · <span style="color:#F59E0B">🔥 SQZ ON</span>':'')+(cc.confirmed?' · <span style="color:#10B981">CANDLE ✅</span>':'')+(ichi?.bullish?' · <span style="color:#10B981">ICHI BULL</span>':ichi?.bearish?' · <span style="color:#EF4444">ICHI BEAR</span>':''));
+  appendMsg('ai','XAU/USD V5 siap.<br>Signal: <b style="color:'+sigColor(APST.signal)+'">'+APST.signal+'</b> · Score: '+APST.composite+'/100 · EQS: '+APST.eqs+'/10'+(sn?'<br>Sniper V5: <b style="color:'+(sn.pct>=72?'#10B981':'var(--gold)')+'">'+sn.pct+'% '+sn.quality+'</b>':'')+(ol?' · Priority: <b style="color:var(--gold)">'+ol.priority.toUpperCase()+'</b>':'')+((APST.orderBlocks||[]).some(ob=>!ob.mitigated)?' · <span style="color:#EC4899">OB ACTIVE</span>':'')+(h1?.squeeze?.sqzOn?' · <span style="color:#F59E0B">🔥 SQZ ON</span>':'')+(cc.confirmed?' · <span style="color:#10B981">CANDLE ✅</span>':'')+(ichi?.bullish?' · <span style="color:#10B981">ICHI BULL</span>':ichi?.bearish?' · <span style="color:#EF4444">ICHI BEAR</span>':''));
   setTimeout(()=>$('chat-inp')?.focus(),300);
 }
 function closeChat(){$('chat-panel')?.classList.remove('on');_chatSending=false;}
@@ -2206,7 +2217,10 @@ function openPanel(id,cb){const el=$(id);if(el)el.classList.add('on');if(cb)cb()
 function closePanel(id){$(id)?.classList.remove('on');}
 function loadCfgUI(){$('inp-apikey').value=cfg.apiKey||'';$('inp-tgtoken').value=cfg.tgToken||'';$('inp-tgchat').value=cfg.tgChat||'';$('inp-tgsig').checked=cfg.tgSig||false;$('inp-tgsb').checked=cfg.tgSb||false;if($('inp-tgnews'))$('inp-tgnews').checked=cfg.tgNews||false;$('inp-alert-above').value=cfg.alertAbove||'';$('inp-alert-below').value=cfg.alertBelow||'';}
 function saveCfg(){cfg.apiKey=$('inp-apikey').value.trim();cfg.tgToken=$('inp-tgtoken').value.trim();cfg.tgChat=$('inp-tgchat').value.trim();cfg.tgSig=$('inp-tgsig').checked;cfg.tgSb=$('inp-tgsb').checked;cfg.tgNews=$('inp-tgnews')?.checked||false;cfg.alertAbove=parseFloat($('inp-alert-above').value)||0;cfg.alertBelow=parseFloat($('inp-alert-below').value)||0;alertAboveFired=false;alertBelowFired=false;lsSet('gs4_cfg',cfg);closePanel('settings-panel');if(cfg.apiKey&&APST.price)runAISummary();}
-function manualRefresh(){APST.retryCount=0;timeLeft=1;if(!APST.isFetching)fetchAllData();}
+// manualRefresh defined above
+  timeLeft=1;
+  fetchAllData();
+}
 
 // ============================================================
 // TIMER LOOP
@@ -2217,7 +2231,7 @@ setInterval(()=>{
   if(tb){tb.style.width=pct+'%';const lr=pct<20;tb.style.background=lr?'#EF4444':'var(--gold)';tb.style.boxShadow=lr?'0 0 8px #EF4444':'0 0 8px rgba(255,215,0,.6)';tb.style.transition=pct>95?'none':'width 1s linear';}
   const ck=$('clock');if(ck)ck.textContent=new Date().toLocaleTimeString('id-ID');
   const sn2=$('st-next');if(sn2)sn2.textContent=timeLeft;
-  if(timeLeft<=0){timeLeft=currentRefresh;fetchAllData();}
+  if(timeLeft<=0){timeLeft=currentRefresh;if(!APST.isFetching)fetchAllData();}
 },1000);
 
 window.addEventListener('scroll',()=>{const b=$('scroll-top');if(b)b.classList.toggle('show',window.scrollY>300);},{passive:true});
