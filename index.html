@@ -406,7 +406,7 @@ select.si option{background:#0a0800;}
     <button onclick="openPanel('settings-panel',loadCfgUI)" class="text-[8px] text-[var(--gold)] border border-[var(--gold)]/28 px-3 py-1.5 rounded-full hdr tracking-wider">⚙ CFG</button>
   </div>
 </div>
-<div id="err-panel"><div class="ec" id="ec"></div><div class="ed" id="ed"></div><button id="retry-btn" onclick="manualRefresh()">↻ RETRY</button></div>
+<div id="err-panel"><div class="ec" id="ec"></div><div class="ed" id="ed"></div><button id="retry-btn" onclick="manualRefresh()">↻ TAP UNTUK RETRY</button></div>
 
 <!-- NEWS ALERT BANNER -->
 <div id="news-banner" class="hidden mb-3 rounded-2xl p-3 border border-[#F87171]/40 bg-[rgba(239,68,68,.04)]">
@@ -898,55 +898,14 @@ select.si option{background:#0a0800;}
 
 <script>
 
-// ============================================================
-// V5 FIX PATCH - Robust fetch + UI improvements
-// ============================================================
-
-// Fix 1: Safe element setter - never crashes on missing elements
-function safeSet(id, val, prop='textContent'){
-  const el=document.getElementById(id);
-  if(!el)return;
-  if(prop==='textContent')el.textContent=val;
-  else if(prop==='innerHTML')el.innerHTML=val;
-  else if(prop==='style.color')el.style.color=val;
-  else if(prop==='className')el.className=val;
-}
-
-// Fix 2: Loading state - show skeleton while fetching
-function showLoadingState(){
-  const badges=['market-badge','ttm-badge','sniper-quality-badge','ot-priority-badge'];
-  badges.forEach(id=>{const el=$(id);if(el){el.className='badge b-closed';el.textContent='LOADING';}});
-  const pv=$('price-val');if(pv&&pv.textContent==='—')pv.textContent='...';
-}
-
-// Fix 3: Prevent duplicate fetches with debounce
-let _fetchDebounce=null;
-function debouncedFetch(){
-  if(_fetchDebounce)clearTimeout(_fetchDebounce);
-  _fetchDebounce=setTimeout(()=>{if(!APST.isFetching)fetchAllData();},500);
-}
-
-// Fix 4: Auto retry on failure with backoff
+// ── V5 PATCH UTILITIES ───────────────────────────────────────
+function safeSet(id,val,prop='textContent'){const el=document.getElementById(id);if(!el)return;if(prop==='textContent')el.textContent=val;else if(prop==='innerHTML')el.innerHTML=val;else if(prop==='className')el.className=val;}
+function showLoadingState(){['market-badge','ttm-badge','sniper-quality-badge','ot-priority-badge'].forEach(id=>{const el=document.getElementById(id);if(el){el.className='badge b-closed';el.textContent='LOADING';}});}
 let _autoRetryTimer=null;
-function scheduleRetry(seconds){
-  if(_autoRetryTimer)clearTimeout(_autoRetryTimer);
-  _autoRetryTimer=setTimeout(()=>{
-    if(!APST.isFetching&&APST.retryCount<5){
-      setApiSt('RETRY '+APST.retryCount+'...');
-      fetchAllData();
-    }
-  },seconds*1000);
-}
-
-// Fix 5: Show partial data even if some fetches fail
-function renderPartial(){
-  if(APST.price>0){
-    renderPrice();
-    renderSession();
-    const pc=$('price-card');if(pc)pc.className='gold-card p-4 mb-3 card-glow';
-  }
-}
-
+function scheduleRetry(secs){if(_autoRetryTimer)clearTimeout(_autoRetryTimer);_autoRetryTimer=setTimeout(()=>{if(!APST.isFetching&&APST.retryCount<=4){setApiSt('RETRY '+APST.retryCount+'...');fetchAllData();}},secs*1000);}
+function renderPartial(){try{if(APST.price>0){renderPrice();renderSession();const pc=document.getElementById('price-card');if(pc)pc.className='gold-card p-4 mb-3 card-glow';}}catch(e){}}
+function manualRefresh(){APST.retryCount=0;if(_autoRetryTimer){clearTimeout(_autoRetryTimer);_autoRetryTimer=null;}showLoadingState();if(!APST.isFetching){timeLeft=2;fetchAllData();}}
+// ─────────────────────────────────────────────────────────────
 // ============================================================
 // GOLD SENTINEL V5 APEX — COMPLETE JS ENGINE
 // All 15 upgraded engines: OB, FVG, VWAP, VolDelta, Ichimoku,
@@ -983,7 +942,8 @@ const APST={
   smcBias:{zone:'EQUILIBRIUM',eq:0,posPct:50},
   newsEvents:[],correlations:{},
   candleConfirm:{confirmed:false,pattern:'—',desc:'—'},
-  isFetching:false,retryCount:0
+  isFetching:false,retryCount:0,
+  newsEvents:[],correlations:{dxy:null,spx:null,oil:null,us10y:null}
 };
 
 function lsGet(k,d=null){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
@@ -1191,7 +1151,7 @@ function calcVolumeDelta(O,H,L,C,V){
 
 // 6. VOLATILITY REGIME
 function calcVolatilityRegime(C,H,L){
-  if(!C||C.length<30)return{label:'NORMAL',ratio:1,pct:50,scalp:'NORMAL',mult:1.2};
+  if(!C||!H||!L||C.length<20)return{label:'NORMAL',ratio:1,pct:50,scalp:'NORMAL',mult:1.2,atrNow:20,bbWidth:1};
   const atrNow=calcATR(H,L,C,14)||1;
   const atrOld=calcATR(H.slice(0,-14),L.slice(0,-14),C.slice(0,-14),14)||1;
   const ratio=atrNow/atrOld;
@@ -1207,7 +1167,8 @@ function calcVolatilityRegime(C,H,L){
 
 // 7. ICHIMOKU CLOUD
 function calcIchimoku(H,L,C){
-  if(!H||H.length<52)return null;
+  if(!H||!L||!C||H.length<30)return null;
+  if(H.length<52){H=[...Array(52-H.length).fill(H[0]),...H];L=[...Array(52-L.length).fill(L[0]),...L];C=[...Array(52-C.length).fill(C[0]),...C];}
   const highLowMid=(h,l)=>(Math.max(...h)+Math.min(...l))/2;
   const n=H.length;
   const tenkan=highLowMid(H.slice(-9),L.slice(-9));
@@ -1357,8 +1318,8 @@ async function fetchCorrelations(){
   // SPX and US10Y optional - skip if others failed
   let spxChg=null,us10yChg=null;
   if(dxyChg!==null){
-    spxChg=await getChg('%5EGSPC');
-    us10yChg=await getChg('%5ETNX');
+    spxChg=await getChg('%5EGSPC').catch(()=>null);
+    us10yChg=await getChg('%5ETNX').catch(()=>null);
   }
   return{dxy:dxyChg,spx:spxChg,oil:oilChg,us10y:us10yChg};
 }
@@ -1470,8 +1431,10 @@ function processCandles(candles,volRegime){
   const volDelta=calcVolumeDelta(O,H,L,C,V);
   const vwap=calcVWAP(candles,price);
   // RSI array for proper divergence
+  // Build RSI array efficiently using only last 40 bars
   const rsiArr=[];
-  for(let i=15;i<C.length;i++){const r=calcRSI(C.slice(0,i+1));if(r!=null)rsiArr.push(r);}
+  const startIdx=Math.max(14,C.length-40);
+  for(let i=startIdx;i<C.length;i++){const r=calcRSI(C.slice(0,i+1));if(r!=null)rsiArr.push(r);}
   const hiddenDivs=calcHiddenDivergenceProper(H,L,C,rsiArr);
   // Simple divergence (for backward compat)
   let divergence=null;
@@ -1620,151 +1583,194 @@ const PROXIES=[
   'https://corsproxy.io/?',
   'https://api.allorigins.win/raw?url=',
   'https://thingproxy.freeboard.io/fetch/',
-  'https://proxy.cors.sh/'
+  'https://api.codetabs.com/v1/proxy?quest='
 ];
-async function fetchWithProxy(url,timeout=12000){
-  for(const p of PROXIES){
-    try{
-      const ctrl=new AbortController();
-      const timer=setTimeout(()=>ctrl.abort(),timeout);
-      const r=await fetch(p+encodeURIComponent(url),{signal:ctrl.signal,headers:{'x-cors-api-key':'temp_demo'}});
-      clearTimeout(timer);
-      if(r.ok){const j=await r.json();if(j)return j;}
-    }catch(e){}
-  }
-  // Last resort: direct fetch (works if no CORS issue)
-  try{
+
+async function fetchWithProxy(url, timeout=11000){
+  const tryFetch=async(fullUrl)=>{
     const ctrl=new AbortController();
-    setTimeout(()=>ctrl.abort(),8000);
-    const r=await fetch(url,{signal:ctrl.signal});
-    if(r.ok)return await r.json();
-  }catch(e){}
+    const t=setTimeout(()=>ctrl.abort(),timeout);
+    try{
+      const r=await fetch(fullUrl,{
+        signal:ctrl.signal,
+        cache:'no-store',
+        headers:{'Accept':'application/json','Cache-Control':'no-cache'}
+      });
+      clearTimeout(t);
+      if(!r.ok)return null;
+      const txt=await r.text();
+      if(!txt||txt.length<10)return null;
+      try{return JSON.parse(txt);}catch(e){return null;}
+    }catch(e){clearTimeout(t);return null;}
+  };
+  // Try each proxy
+  for(const proxy of PROXIES){
+    const result=await tryFetch(proxy+encodeURIComponent(url));
+    if(result)return result;
+  }
+  // Direct (works in some browsers without CORS issue)
+  const result=await tryFetch(url);
+  if(result)return result;
   return null;
 }
+
 function parseYahooCandles(data){
-  const res=data?.chart?.result?.[0]||data?.spark?.result?.[0];
+  if(!data)return null;
+  const res=data?.chart?.result?.[0]||data?.spark?.result?.[0]||null;
   if(!res)return null;
   const ts=res.timestamp||[];
   const q=res.indicators?.quote?.[0]||{};
   const O=q.open||[],H=q.high||[],L=q.low||[],C=q.close||[],V=q.volume||[];
   const clean=[];
-  for(let i=0;i<C.length;i++)if(O[i]!=null&&H[i]!=null&&L[i]!=null&&C[i]!=null&&!isNaN(C[i]))
-    clean.push({t:ts[i]||i,o:O[i],h:H[i],l:L[i],c:C[i],v:V[i]||0});
+  for(let i=0;i<C.length;i++){
+    if(O[i]!=null&&H[i]!=null&&L[i]!=null&&C[i]!=null&&
+       !isNaN(C[i])&&C[i]>0&&H[i]>0){
+      clean.push({t:ts[i]||Date.now()/1000-i*3600,o:+O[i],h:+H[i],l:+L[i],c:+C[i],v:+(V[i]||1)});
+    }
+  }
   return clean.length>=15?clean:null;
 }
+
 async function fetchYahoo(sym,interval,range){
-  // Try v8 first, then v7 as fallback
+  const encoded=encodeURIComponent(sym);
   const urls=[
-    `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${range}&includePrePost=false`,
-    `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=${interval}&range=${range}&includePrePost=false`,
-    `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${sym}&range=${range}&interval=${interval}`
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=${interval}&range=${range}&includePrePost=false`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${encoded}?interval=${interval}&range=${range}&includePrePost=false`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=${interval}&range=${range}`,
   ];
   for(const url of urls){
-    try{
-      const d=await fetchWithProxy(url);
-      if(!d)continue;
-      const candles=parseYahooCandles(d);
-      if(candles&&candles.length>=15)return candles;
-    }catch(e){}
+    const d=await fetchWithProxy(url);
+    if(!d)continue;
+    const candles=parseYahooCandles(d);
+    if(candles&&candles.length>=15)return candles;
   }
   return null;
 }
+
 function resampleH4(c){const r=[];for(let i=0;i<c.length;i+=4){const ch=c.slice(i,Math.min(i+4,c.length));if(!ch.length)continue;r.push({t:ch[0].t,o:ch[0].o,h:Math.max(...ch.map(x=>x.h)),l:Math.min(...ch.map(x=>x.l)),c:ch[ch.length-1].c,v:ch.reduce((s,x)=>s+x.v,0)});}return r;}
 
 async function fetchAllData(){
   if(APST.isFetching)return;
-  APST.isFetching=true;setScanPulse(true);setApiSt('FETCHING...');hideErr();
+  APST.isFetching=true;
+  setScanPulse(true);
+  setApiSt('FETCHING...');
+  hideErr();
+
   try{
-    // Phase 1: Fetch core price data only (reduce parallel requests)
+    // ── PHASE 1: Fetch H1 (most important) ──────────────────
     setApiSt('FETCHING H1...');
-    const d1h=await fetchYahoo('GC=F','1h','3mo');
-    const h1c=d1h;
-    if(!h1c||h1c.length<15){
-      // Try alternative intervals/ranges
-      const alt1=await fetchYahoo('GC=F','60m','1mo');
-      const alt2=await fetchYahoo('XAUUSD=X','1h','1mo');
-      const finalH1=alt1||alt2;
-      if(!finalH1||finalH1.length<15){
-        throw new Error('Data XAU/USD tidak tersedia saat ini. Periksa koneksi dan tap SCAN lagi.');
-      }
-      // Use alt data
-      h1c.push(...finalH1);
+    let h1c=null;
+    const h1attempts=[
+      ()=>fetchYahoo('GC=F','1h','3mo'),
+      ()=>fetchYahoo('GC=F','1h','1mo'),
+      ()=>fetchYahoo('GC=F','60m','1mo'),
+      ()=>fetchYahoo('XAUUSD=X','1h','1mo'),
+      ()=>fetchYahoo('GC=F','1h','5d'),
+    ];
+    for(const attempt of h1attempts){
+      h1c=await attempt();
+      if(h1c&&h1c.length>=15)break;
+      h1c=null;
     }
+    if(!h1c||h1c.length<15){
+      throw new Error('Data XAU/USD tidak bisa dimuat. Periksa koneksi lalu tap ↻ SCAN');
+    }
+
+    // ── PHASE 2: Fetch supporting TFs in parallel ───────────
     setApiSt('FETCHING TF...');
     const [d5m,d15m,d1d]=await Promise.all([
-      fetchYahoo('GC=F','5m','2d'),
-      fetchYahoo('GC=F','15m','5d'),
-      fetchYahoo('GC=F','1d','1y')
+      fetchYahoo('GC=F','5m','2d').catch(()=>null),
+      fetchYahoo('GC=F','15m','5d').catch(()=>null),
+      fetchYahoo('GC=F','1d','1y').catch(()=>null),
     ]);
     const m5c=d5m,m15c=d15m,d1c=d1d;
-    // News and correlations run in background, don't block render
-    const corrs={};const news=[];
-    fetchCorrelations().then(c=>{if(c){APST.correlations=c;renderCorrelationPanel();}}).catch(()=>{});
-    fetchEconomicCalendar().then(n=>{if(n){APST.newsEvents=n;renderNewsPanel();checkNewsAlert();}}).catch(()=>{});
-    const lat=h1c[h1c.length-1],prevDay=d1c&&d1c.length>=2?d1c[d1c.length-2]:null;
+
+    // ── PHASE 3: Process data ────────────────────────────────
+    setApiSt('PROCESSING...');
+    const lat=h1c[h1c.length-1];
+    const prevDay=d1c&&d1c.length>=2?d1c[d1c.length-2]:null;
     APST.price=lat.c;
     APST.dayHigh=Math.max(...(m5c||h1c.slice(-24)).map(c=>c.h));
     APST.dayLow=Math.min(...(m5c||h1c.slice(-24)).map(c=>c.l));
     APST.prevClose=prevDay?.c||lat.o;
-    // Volatility regime first (needed for adaptive scoring)
+
     const H1H=h1c.map(c=>c.h),H1L=h1c.map(c=>c.l),H1C=h1c.map(c=>c.c);
     APST.volatilityRegime=calcVolatilityRegime(H1C,H1H,H1L);
-    // Process timeframes
+
     APST.tfData.H1=processCandles(h1c,APST.volatilityRegime);
-    APST.tfData.M5=m5c&&m5c.length>=20?processCandles(m5c,APST.volatilityRegime):{...APST.tfData.H1};
+    APST.tfData.M5 =m5c&&m5c.length>=20?processCandles(m5c,APST.volatilityRegime):{...APST.tfData.H1};
     APST.tfData.M15=m15c&&m15c.length>=20?processCandles(m15c,APST.volatilityRegime):{...APST.tfData.H1};
-    APST.tfData.H4=processCandles(resampleH4(h1c),APST.volatilityRegime);
-    APST.tfData.D1=d1c&&d1c.length>=20?processCandles(d1c,APST.volatilityRegime):null;
-    // Composite score
+    APST.tfData.H4 =processCandles(resampleH4(h1c),APST.volatilityRegime);
+    APST.tfData.D1 =d1c&&d1c.length>=20?processCandles(d1c,APST.volatilityRegime):null;
+
+    // Composite
     const W={M5:1,M15:2,H1:4,H4:3,D1:2};let ws=0,wv=0;
     ['M5','M15','H1','H4','D1'].forEach(k=>{const d=APST.tfData[k];if(d){wv+=d.normalized*(W[k]||1);ws+=W[k]||1;}});
     const comp=ws>0?Math.round(wv/ws):50;
     APST.composite=comp;
     APST.signal=comp>=70?'STRONG BUY':comp>=58?'BUY':comp<=30?'STRONG SELL':comp<=42?'SELL':'NEUTRAL';
     APST.eqs=APST.tfData.H1?.eqs||Math.max(1,Math.min(10,Math.round(comp/10)));
-    // Pivots, Fibs, CPR
+
+    // Pivots / Fibs / CPR
     if(d1c&&d1c.length>=2){const p=d1c[d1c.length-2];APST.pivots=calcPivots(p.h,p.l,p.c);APST.fibLevels=calcFib(p.h,p.l);APST.cpr=calcCPR(p.h,p.l,p.c);}
     else{APST.pivots=calcPivots(APST.dayHigh,APST.dayLow,APST.price);APST.fibLevels=calcFib(APST.dayHigh,APST.dayLow);APST.cpr=calcCPR(APST.dayHigh,APST.dayLow,APST.price);}
-    // DXY - fetch in background, use estimate if not available
-    fetchYahoo('DX-Y.NYB','1d','5d').then(dxyC=>{
-      if(dxyC&&dxyC.length>=2){const dc=dxyC[dxyC.length-1],dcp=dxyC[dxyC.length-2],ch=dc.c-dcp.c;APST.dxy={price:dc.c,change:ch,changePct:dcp.c>0?ch/dcp.c*100:0};renderDXY();}
-    }).catch(()=>{});
-    if(!APST.dxy.price)APST.dxy={price:104.5,change:0.05,changePct:0.05};
-    // V5 New engines
+
+    // V5 engines (synchronous, no fetch needed)
     APST.orderBlocks=calcOrderBlocks(h1c.map(c=>c.o),H1H,H1L,H1C,APST.price);
     APST.fvgList=calcFVG(H1H,H1L,H1C,APST.price);
-    const liqData=calcLiquiditySweep(H1H,H1L,H1C,APST.price);
-    APST.liquidityZones=liqData;
+    APST.liquidityZones=calcLiquiditySweep(H1H,H1L,H1C,APST.price);
     APST.vwap=calcVWAP(h1c,APST.price);
     APST.volumeDelta=APST.tfData.H1?.volDelta||{buyPct:50,sellPct:50,climax:false,absorption:false,imbalance:false,pressure:'BALANCED'};
     const ms=APST.tfData.H1?.marketStructure;
     APST.smcBias=ms?calcSMCBias(ms.lastSwingHigh,ms.lastSwingLow,APST.price):{zone:'EQUILIBRIUM',eq:APST.price,posPct:50};
-    APST.newsEvents=news;
-    APST.correlations=corrs;
     APST.candleConfirm=calcCandleConfirm(h1c.map(c=>c.o),H1H,H1L,H1C,APST.signal);
     APST.session=getSession();
-    // Scan stats
-    const ss=$('scan-stats');if(ss){ss.classList.remove('hidden');ss.style.display='flex';}
-    const stsig=$('st-sig');if(stsig)stsig.textContent=APST.signal;
-    const stsc=$('st-score');if(stsc)stsc.textContent=APST.composite;
-    const steq=$('st-eqs');if(steq)steq.textContent=APST.eqs;
-    const stsn=$('st-sniper');if(stsn){const sn=calcSniperV5();if(sn)stsn.textContent=sn.pct;}
-    const streg=$('st-regime');if(streg)streg.textContent=APST.volatilityRegime.label;
-    renderAll();setApiSt('LIVE ✓');notifyChange();checkAlerts();
+
+    // Set defaults for background-fetched data
+    if(!APST.dxy.price)APST.dxy={price:104.5,change:0.05,changePct:0.05};
+    if(!APST.newsEvents)APST.newsEvents=[];
+    if(!APST.correlations)APST.correlations={};
+
+    // ── RENDER CORE immediately ──────────────────────────────
+    renderAll();
+    setApiSt('LIVE ✓');
+    notifyChange();
+    checkAlerts();
     startSignalDecay();
+    APST.retryCount=0;
+    currentRefresh=30;
+    timeLeft=30;
+
+    // Update scan stats
+    const ss=$('scan-stats');if(ss){ss.classList.remove('hidden');ss.style.display='flex';}
+    ['st-sig','st-score','st-eqs','st-regime','st-sniper'].forEach(id=>{const el=$(id);if(!el)return;if(id==='st-sig')el.textContent=APST.signal;else if(id==='st-score')el.textContent=APST.composite;else if(id==='st-eqs')el.textContent=APST.eqs;else if(id==='st-regime')el.textContent=APST.volatilityRegime.label;else if(id==='st-sniper'){const sn=calcSniperV5();if(sn)el.textContent=sn.pct;}});
+
     if(getApiKey())runAISummary();
-    APST.retryCount=0;currentRefresh=30;timeLeft=30;
-    // Check news alerts
-    checkNewsAlert();
+
+    // ── PHASE 4: Background fetches (won't block UI) ─────────
+    setTimeout(async()=>{
+      try{
+        const dxyC=await fetchYahoo('DX-Y.NYB','1d','5d');
+        if(dxyC&&dxyC.length>=2){const dc=dxyC[dxyC.length-1],dcp=dxyC[dxyC.length-2],ch=dc.c-dcp.c;APST.dxy={price:dc.c,change:ch,changePct:dcp.c>0?ch/dcp.c*100:0};renderDXY();}
+      }catch(e){}
+    },2000);
+
+    setTimeout(async()=>{
+      try{const c=await fetchCorrelations();if(c){APST.correlations=c;renderCorrelationPanel();}}catch(e){}
+    },5000);
+
+    setTimeout(async()=>{
+      try{const n=await fetchEconomicCalendar();if(n&&n.length){APST.newsEvents=n;renderNewsPanel();checkNewsAlert();}}catch(e){}
+    },8000);
+
   }catch(e){
-    setApiSt('ERROR');
+    setApiSt('ERROR ✕');
     APST.retryCount=(APST.retryCount||0)+1;
-    showErr('FETCH ERROR',e.message+' (retry '+APST.retryCount+')');
-    currentRefresh=Math.min(60,15*APST.retryCount);
+    showErr('FETCH ERROR',e.message);
+    currentRefresh=Math.min(45,10+APST.retryCount*5);
     timeLeft=currentRefresh;
     renderPartial();
-    // Auto retry after delay
-    if(APST.retryCount<=5)scheduleRetry(Math.min(30,APST.retryCount*8));
+    if(APST.retryCount<=4)scheduleRetry(currentRefresh);
   }
   APST.isFetching=false;
   setScanPulse(false);
@@ -2200,13 +2206,7 @@ function openPanel(id,cb){const el=$(id);if(el)el.classList.add('on');if(cb)cb()
 function closePanel(id){$(id)?.classList.remove('on');}
 function loadCfgUI(){$('inp-apikey').value=cfg.apiKey||'';$('inp-tgtoken').value=cfg.tgToken||'';$('inp-tgchat').value=cfg.tgChat||'';$('inp-tgsig').checked=cfg.tgSig||false;$('inp-tgsb').checked=cfg.tgSb||false;if($('inp-tgnews'))$('inp-tgnews').checked=cfg.tgNews||false;$('inp-alert-above').value=cfg.alertAbove||'';$('inp-alert-below').value=cfg.alertBelow||'';}
 function saveCfg(){cfg.apiKey=$('inp-apikey').value.trim();cfg.tgToken=$('inp-tgtoken').value.trim();cfg.tgChat=$('inp-tgchat').value.trim();cfg.tgSig=$('inp-tgsig').checked;cfg.tgSb=$('inp-tgsb').checked;cfg.tgNews=$('inp-tgnews')?.checked||false;cfg.alertAbove=parseFloat($('inp-alert-above').value)||0;cfg.alertBelow=parseFloat($('inp-alert-below').value)||0;alertAboveFired=false;alertBelowFired=false;lsSet('gs4_cfg',cfg);closePanel('settings-panel');if(cfg.apiKey&&APST.price)runAISummary();}
-function manualRefresh(){
-  APST.retryCount=0;
-  if(_autoRetryTimer){clearTimeout(_autoRetryTimer);_autoRetryTimer=null;}
-  showLoadingState();
-  timeLeft=2;
-  if(!APST.isFetching)fetchAllData();
-}
+function manualRefresh(){APST.retryCount=0;timeLeft=1;if(!APST.isFetching)fetchAllData();}
 
 // ============================================================
 // TIMER LOOP
