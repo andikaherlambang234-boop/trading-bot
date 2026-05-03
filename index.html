@@ -1232,6 +1232,725 @@ window.addEventListener('scroll',()=>{const b=$('scroll-top');if(b)b.classList.t
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&timeLeft<5&&!APST.isFetching){timeLeft=1;fetchAllData();}});
 document.addEventListener('click',()=>{if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume().catch(()=>{});},{passive:true});
 (function init(){activePositions=lsGet('gs7_positions')||[];updateWrDisplay();currentRefresh=cfg.refreshInterval||30;timeLeft=currentRefresh;renderPositionTracker();fetchAllData();window.addEventListener('resize',()=>{if(rawCandlesH1.length)try{drawMiniChart();}catch(e){}},{passive:true});})();
+
+// ═══════════════════════════════════════════════
+// BITCOIN SENTINEL V7 APEX — ENGINE
+// ═══════════════════════════════════════════════
+const BTC={price:0,prevClose:0,dayHigh:0,dayLow:0,composite:50,signal:'NEUTRAL',eqs:5,session:'Asia',tfData:{M5:null,M15:null,H1:null,H4:null,D1:null},pivots:{},fibLevels:{},cpr:{},orderBlocks:[],fvgList:[],liquidityZones:{eqH:null,eqL:null,sweeps:[],desc:'',nearEqH:false,nearEqL:false},vwap:{},volumeDelta:{buyPct:50,sellPct:50,climax:false,absorption:false,imbalance:false,pressure:'BALANCED'},volatilityRegime:{label:'NORMAL',ratio:1,pct:50,scalp:'NORMAL',mult:1.2,atrNow:1000,bbWidth:1},smcBias:{zone:'EQUILIBRIUM',eq:0,posPct:50},candleConfirm:{confirmed:false,pattern:'--',desc:'--',closePos:'--',rejection:'CLEAN'},newsEvents:[],smartMoneyFlow:{instPct:50,retailPct:50,direction:'NEUTRAL'},stochRSI:{k:50,d:50},cmf:0,mfi:50,limitOrders:{buyLimit:null,sellLimit:null},isFetching:false};
+let rawCandlesBTC=[],btcSentimentCache={score:50,label:'NEUTRAL',color:'#F7931A',factors:[]},btcTimeLeft=30,btcDecayInterval=null,btcChatHistory=[],btcCurrentTP='',btcWinHistory={};
+
+function $b(id){return document.getElementById(id);}
+function fBtcPrice(n){if(n==null||isNaN(n))return '--';return n>=1000?'$'+n.toFixed(0):n>=1?'$'+n.toFixed(2):'$'+n.toFixed(4);}
+
+async function fetchAllDataBTC(){
+  if(BTC.isFetching)return;BTC.isFetching=true;
+  const sp=$b('btc-dot');if(sp)sp.style.animation='pulse 0.3s infinite alternate';
+  const apiSt=$b('btc-api-st');if(apiSt)apiSt.textContent='FETCHING...';
+  try{
+    let h1c=null;
+    for(const fn of[()=>fetchYahooRaw('BTC-USD','1h','1mo'),()=>fetchYahooRaw('BTC-USD','60m','1mo'),()=>fetchYahooRaw('BTC-USD','1h','5d')]){
+      h1c=await fn();if(h1c&&h1c.length>=15)break;h1c=null;
+    }
+    if(!h1c||h1c.length<15)throw new Error('BTC data gagal. Tap SCAN BTC.');
+    rawCandlesBTC=h1c;
+    const[d5m,d15m,d1d]=await Promise.all([fetchYahooRaw('BTC-USD','5m','2d').catch(()=>null),fetchYahooRaw('BTC-USD','15m','5d').catch(()=>null),fetchYahooRaw('BTC-USD','1d','1y').catch(()=>null)]);
+    const lat=h1c[h1c.length-1];BTC.price=lat.c;
+    BTC.dayHigh=Math.max(...(d5m||h1c.slice(-24)).map(c=>c.h).filter(v=>!isNaN(v)));
+    BTC.dayLow=Math.min(...(d5m||h1c.slice(-24)).map(c=>c.l).filter(v=>!isNaN(v)));
+    BTC.prevClose=(d1d&&d1d.length>=2?d1d[d1d.length-2]:null)?.c||lat.o;
+    const H1H=h1c.map(c=>c.h),H1L=h1c.map(c=>c.l),H1C=h1c.map(c=>c.c);
+    BTC.volatilityRegime=calcVolatilityRegime(H1C,H1H,H1L);
+    BTC.tfData.H1=processCandles(h1c,BTC.volatilityRegime);
+    BTC.tfData.M5=d5m&&d5m.length>=20?processCandles(d5m,BTC.volatilityRegime):BTC.tfData.H1?{...BTC.tfData.H1}:null;
+    BTC.tfData.M15=d15m&&d15m.length>=20?processCandles(d15m,BTC.volatilityRegime):BTC.tfData.H1?{...BTC.tfData.H1}:null;
+    BTC.tfData.H4=processCandles(resampleH4(h1c),BTC.volatilityRegime);
+    BTC.tfData.D1=d1d&&d1d.length>=20?processCandles(d1d,BTC.volatilityRegime):null;
+    const W={M5:1,M15:2,H1:4,H4:3,D1:2};let ws=0,wv=0;
+    Object.entries(W).forEach(([k,w])=>{const d=BTC.tfData[k];if(d){wv+=d.normalized*w;ws+=w;}});
+    BTC.composite=ws>0?clamp(Math.round(wv/ws),0,100):50;
+    BTC.signal=BTC.composite>=70?'STRONG BUY':BTC.composite>=58?'BUY':BTC.composite<=30?'STRONG SELL':BTC.composite<=42?'SELL':'NEUTRAL';
+    BTC.eqs=BTC.tfData.H1?.eqs||clamp(Math.round(BTC.composite/10),1,10);
+    if(d1d&&d1d.length>=2){const p=d1d[d1d.length-2];BTC.pivots=calcPivots(p.h,p.l,p.c);BTC.fibLevels=calcFib(p.h,p.l);BTC.cpr=calcCPR(p.h,p.l,p.c);}
+    else{BTC.pivots=calcPivots(BTC.dayHigh,BTC.dayLow,BTC.price);BTC.fibLevels=calcFib(BTC.dayHigh,BTC.dayLow);BTC.cpr=calcCPR(BTC.dayHigh,BTC.dayLow,BTC.price);}
+    BTC.orderBlocks=calcOrderBlocks(h1c.map(c=>c.o),H1H,H1L,H1C,BTC.price);
+    BTC.fvgList=calcFVG(H1H,H1L,H1C,BTC.price);
+    BTC.liquidityZones=calcLiquiditySweep(H1H,H1L,H1C,BTC.price);
+    BTC.vwap=calcVWAP(h1c,BTC.price);
+    BTC.volumeDelta=BTC.tfData.H1?.volDelta||{buyPct:50,sellPct:50,climax:false,absorption:false,imbalance:false,pressure:'BALANCED'};
+    BTC.smartMoneyFlow=BTC.tfData.H1?.smartMF||{instPct:50,retailPct:50,direction:'NEUTRAL'};
+    BTC.stochRSI=BTC.tfData.H1?.stochRSI||{k:50,d:50};BTC.cmf=BTC.tfData.H1?.cmf||0;BTC.mfi=BTC.tfData.H1?.mfi||50;
+    const ms=BTC.tfData.H1?.marketStructure;BTC.smcBias=ms?calcSMCBias(ms.lastSwingHigh,ms.lastSwingLow,BTC.price):{zone:'EQUILIBRIUM',eq:BTC.price,posPct:50};
+    BTC.candleConfirm=calcCandleConfirm(h1c.map(c=>c.o),H1H,H1L,H1C,BTC.signal);
+    BTC.session=getSession();BTC.limitOrders=calcBTCLimitOrders();
+    renderAllBTC();
+    if(apiSt)apiSt.textContent='LIVE V7';
+    if(sp)sp.style.animation='pulse 1s infinite';
+    startBTCSignalDecay();
+    renderBTCGoldCorrelation();
+    if(getApiKey())runBTCAISummary();
+  }catch(e){
+    if(apiSt)apiSt.textContent='ERROR';
+    const ep=$b('btc-err-panel');if(ep)ep.style.display='block';
+    const ec=$b('btc-ec');if(ec)ec.textContent='BTC FETCH ERROR';
+    const ed=$b('btc-ed');if(ed)ed.textContent=e.message||String(e);
+    if(sp)sp.style.animation='';
+  }
+  BTC.isFetching=false;
+}
+
+function manualRefreshBTC(){BTC.isFetching=false;btcTimeLeft=1;const ep=$b('btc-err-panel');if(ep)ep.style.display='none';fetchAllDataBTC();}
+
+function calcBTCLimitOrders(){
+  const price=BTC.price;if(!price||price<=0)return{buyLimit:null,sellLimit:null};
+  const h1=BTC.tfData.H1,atr=h1?.atr||1000,vr=BTC.volatilityRegime,slMult=vr?.mult||1.2;
+  const{pivots,fibLevels,cpr}=BTC,obs=BTC.orderBlocks||[],fvgs=BTC.fvgList||[],vwap=h1?.vwap;
+  const suppLevels=[];
+  if(fibLevels){if(fibLevels['38.2%']&&fibLevels['38.2%']<price-atr*0.3)suppLevels.push({p:fibLevels['38.2%'],label:'Fib 38.2%',weight:8});if(fibLevels['61.8%']&&fibLevels['61.8%']<price-atr*0.3)suppLevels.push({p:fibLevels['61.8%'],label:'Fib 61.8%',weight:9});if(fibLevels['50.0%']&&fibLevels['50.0%']<price-atr*0.3)suppLevels.push({p:fibLevels['50.0%'],label:'Fib 50%',weight:7});}
+  obs.filter(ob=>ob.type==='bull'&&!ob.mitigated&&ob.high<price).forEach(ob=>suppLevels.push({p:(ob.high+ob.low)/2,label:'Bull OB',weight:10}));
+  fvgs.filter(f=>f.type==='bull'&&!f.filled&&f.top<price).forEach(f=>suppLevels.push({p:f.mid,label:'Bull FVG',weight:9}));
+  if(pivots.s1&&pivots.s1<price)suppLevels.push({p:pivots.s1,label:'S1',weight:7});if(pivots.s2&&pivots.s2<price)suppLevels.push({p:pivots.s2,label:'S2',weight:6});
+  if(vwap?.intraday&&vwap.intraday<price)suppLevels.push({p:vwap.intraday,label:'VWAP',weight:8});
+  if(h1?.ema20&&h1.ema20<price)suppLevels.push({p:h1.ema20,label:'EMA20',weight:6});if(h1?.ema50&&h1.ema50<price)suppLevels.push({p:h1.ema50,label:'EMA50',weight:7});
+  const resLevels=[];
+  obs.filter(ob=>ob.type==='bear'&&!ob.mitigated&&ob.low>price).forEach(ob=>resLevels.push({p:(ob.high+ob.low)/2,label:'Bear OB',weight:10}));
+  fvgs.filter(f=>f.type==='bear'&&!f.filled&&f.bot>price).forEach(f=>resLevels.push({p:f.mid,label:'Bear FVG',weight:9}));
+  if(pivots.r1&&pivots.r1>price)resLevels.push({p:pivots.r1,label:'R1',weight:7});if(pivots.r2&&pivots.r2>price)resLevels.push({p:pivots.r2,label:'R2',weight:6});
+  if(vwap?.intraday&&vwap.intraday>price)resLevels.push({p:vwap.intraday,label:'VWAP',weight:8});
+  function findCluster(levels){if(!levels.length)return null;const sorted=levels.sort((a,b)=>Math.abs(a.p-price)-Math.abs(b.p-price));const best=sorted[0],cluster=sorted.filter(l=>Math.abs(l.p-best.p)<atr*1.5);const tw=cluster.reduce((s,l)=>s+l.weight,0),avgP=cluster.reduce((s,l)=>s+l.p*l.weight,0)/tw;return{price:avgP,labels:cluster.map(l=>l.label),confidence:Math.min(99,Math.round(tw/cluster.length*10)),distFromCurrent:Math.abs(avgP-price)};}
+  const bestSupp=suppLevels.length>0?findCluster(suppLevels):null,bestRes=resLevels.length>0?findCluster(resLevels):null;
+  let buyLimit=null;if(bestSupp){const entry=parseFloat(bestSupp.price.toFixed(0)),slDist=atr*slMult,sl=parseFloat((entry-slDist).toFixed(0));buyLimit={zone:entry,sl,tp1:parseFloat((entry+slDist*1.5).toFixed(0)),tp2:parseFloat((entry+slDist*2.5).toFixed(0)),tp3:parseFloat((entry+slDist*4.0).toFixed(0)),basis:bestSupp.labels.join(' + '),confidence:bestSupp.confidence,valid:entry<price-atr*0.2&&entry>price-atr*5};}
+  let sellLimit=null;if(bestRes){const entry=parseFloat(bestRes.price.toFixed(0)),slDist=atr*slMult,sl=parseFloat((entry+slDist).toFixed(0));sellLimit={zone:entry,sl,tp1:parseFloat((entry-slDist*1.5).toFixed(0)),tp2:parseFloat((entry-slDist*2.5).toFixed(0)),tp3:parseFloat((entry-slDist*4.0).toFixed(0)),basis:bestRes.labels.join(' + '),confidence:bestRes.confidence,valid:entry>price+atr*0.2&&entry<price+atr*5};}
+  return{buyLimit,sellLimit};
+}
+
+function calcBTCSniperV7(){
+  const h1=BTC.tfData.H1;if(!h1)return null;
+  const isBull=BTC.composite>=50;let tot=0,max=0;const factors=[];
+  const add=(name,pts,mx,status,cls)=>{factors.push({name,pts,max:mx,status,cls});tot+=pts;max+=mx;};
+  const tfs=Object.values(BTC.tfData).filter(Boolean),bulls=tfs.filter(d=>d.normalized>55).length,bears=tfs.filter(d=>d.normalized<45).length,aligned=isBull?bulls:bears,pts1=aligned>=4?18:aligned>=3?12:aligned>=2?6:0;add('MTF Align',pts1,18,aligned+'/5',pts1>=12?'b-buy':'b-warn');
+  const st=h1.supertrend;let pts2=0;if(st){if(isBull&&st.bullish)pts2=st.justBullCross?15:10;else if(!isBull&&!st.bullish)pts2=st.justBearCross?15:10;}add('Supertrend',pts2,15,st?(st.bullish?'BULL':'BEAR'):'--',pts2>=10?'b-st-bull':'b-st-bear');
+  const sq=h1.squeeze;let pts3=0;if(sq){if(!sq.sqzOn&&isBull===sq.bullishMomentum&&sq.risingMomentum)pts3=14;else if(!sq.sqzOn&&isBull===sq.bullishMomentum)pts3=9;else if(sq.sqzOn)pts3=4;}add('TTM Sqz',pts3,14,sq?(sq.sqzOn?'COILING':sq.bullishMomentum?'BULL':'BEAR'):'--',pts3>=9?'b-sqz-bull':'b-sqz');
+  const ms=h1.marketStructure;let pts4=0;if(ms){if(ms.msb&&isBull===ms.msbBull)pts4=12;else if(ms.trend==='bullish'&&isBull)pts4=8;else if(ms.trend==='bearish'&&!isBull)pts4=8;else pts4=2;}add('Mkt Struct',pts4,12,ms?ms.trend.toUpperCase()+(ms.msb?' MSB!':''):'--',pts4>=8?'b-buy':'b-warn');
+  const obs=BTC.orderBlocks||[];let pts5=0,obStatus='NO OB';const atr=h1.atr||1000;const nBull=obs.find(ob=>ob.type==='bull'&&!ob.mitigated&&Math.abs(ob.dist||0)<atr*1.5),nBear=obs.find(ob=>ob.type==='bear'&&!ob.mitigated&&Math.abs(ob.dist||0)<atr*1.5);if(isBull&&nBull){pts5=8;obStatus='BULL OB';}else if(!isBull&&nBear){pts5=8;obStatus='BEAR OB';}else if(nBull||nBear){pts5=3;obStatus='OB NEAR';}add('Order Block',pts5,12,obStatus,pts5>=8?'b-ob-bull':'b-warn');
+  const vwap=h1.vwap;let pts6=0;if(vwap){if(isBull&&vwap.bullishBias)pts6=10;else if(!isBull&&!vwap.bullishBias)pts6=10;else pts6=2;}add('VWAP',pts6,10,vwap?(vwap.bullishBias?'ABOVE':'BELOW'):'--',pts6>=7?'b-vwap-bull':'b-warn');
+  const vd=BTC.volumeDelta;let pts7=0;if(vd){if(isBull&&vd.buyPct>60)pts7=10;else if(!isBull&&vd.sellPct>60)pts7=10;else pts7=2;}add('Vol Delta',pts7,10,vd?vd.pressure:'--',pts7>=7?'b-buy':'b-warn');
+  const ichi=h1.ichimoku;let pts8=0;if(ichi){if(isBull&&ichi.bullish)pts8=10;else if(!isBull&&ichi.bearish)pts8=10;else pts8=2;}add('Ichimoku',pts8,10,ichi?(ichi.bullish?'FULL BULL':ichi.bearish?'FULL BEAR':'MIXED'):'--',pts8>=7?'b-ichi-bull':'b-warn');
+  const hdivs=h1.hiddenDivs||[];let pts9=0;const bd=hdivs.some(d=>d.type==='regular_bull'||d.type==='hidden_bull'),brd=hdivs.some(d=>d.type==='regular_bear'||d.type==='hidden_bear');if(isBull&&bd)pts9=8;else if(!isBull&&brd)pts9=8;else if(!bd&&!brd)pts9=4;else pts9=1;add('Divergence',pts9,8,hdivs.length>0?hdivs[0].type.replace(/_/g,' ').toUpperCase():'NONE',pts9>=6?'b-div-bull':'b-warn');
+  const cc=BTC.candleConfirm;let pts10=0;if(cc.confirmed)pts10=8;else if(cc.pattern==='WEAK BULL'||cc.pattern==='WEAK BEAR')pts10=3;add('Candle',pts10,8,cc.pattern||'--',pts10>=6?'b-confirm':'b-noconf');
+  const sess=BTC.session,pts11=sess?.includes('Overlap')?8:sess==='London'||sess==='New York'?6:2;add('Session',pts11,8,sess||'--',pts11>=6?'b-ovlp':'b-asia');
+  const vr=BTC.volatilityRegime;let pts12=0;if(vr){if(vr.label==='NORMAL')pts12=7;else if(vr.label==='LOW')pts12=5;else if(vr.label==='HIGH')pts12=4;else pts12=2;}add('Vol Regime',pts12,7,vr?vr.label:'--',pts12>=5?'b-vol-med':'b-vol-high');
+  const srsi=h1.stochRSI;let pts13=0;if(srsi){if(isBull&&srsi.crossUp&&srsi.oversold)pts13=7;else if(isBull&&srsi.crossUp)pts13=5;else if(!isBull&&srsi.crossDn&&srsi.overbought)pts13=7;else if(!isBull&&srsi.crossDn)pts13=5;else if(isBull&&srsi.oversold)pts13=4;else if(!isBull&&srsi.overbought)pts13=4;else pts13=2;}add('StochRSI',pts13,7,srsi?(srsi.crossUp?'CROSS UP':srsi.crossDn?'CROSS DN':srsi.oversold?'OVERSOLD':'OVERBOUGHT'):'--',pts13>=5?'b-buy':'b-warn');
+  const smf=BTC.smartMoneyFlow;let pts14=0;if(smf){if(isBull&&smf.instPct>60)pts14=6;else if(!isBull&&smf.instPct<40)pts14=6;else pts14=2;}add('Smart$',pts14,6,smf?smf.direction:'--',pts14>=5?'b-lime':'b-warn');
+  const pct=max>0?clamp(Math.round((tot/max)*100),0,100):0,quality=pct>=88?'SNIPER':pct>=75?'HIGH CONF':pct>=62?'MODERATE':pct>=48?'LOW CONF':'AVOID',qualCls=pct>=88?'b-sniper':pct>=75?'b-buy':pct>=62?'b-neu':'b-warn';
+  return{pct,quality,qualCls,factors,isBull,shouldEnter:pct>=72};
+}
+
+function calcBTCSentimentScore(){
+  const factors=[];let score=50;const h1=BTC.tfData.H1;
+  if(h1?.rsi!=null){if(h1.rsi>70){score+=8;factors.push({name:'RSI Tinggi',impact:+8,bull:true});}else if(h1.rsi<30){score-=8;factors.push({name:'RSI Rendah',impact:-8,bull:false});}}
+  if(BTC.composite>65){score+=12;factors.push({name:'Trend Bull',impact:+12,bull:true});}else if(BTC.composite<35){score-=12;factors.push({name:'Trend Bear',impact:-12,bull:false});}
+  const vd=BTC.volumeDelta;if(vd?.buyPct>60){score+=6;factors.push({name:'Buy Pressure',impact:+6,bull:true});}else if(vd?.buyPct<40){score-=6;factors.push({name:'Sell Pressure',impact:-6,bull:false});}
+  const smf=BTC.smartMoneyFlow;if(smf?.instPct>60){score+=7;factors.push({name:'Inst Buying',impact:+7,bull:true});}else if(smf?.instPct<40){score-=7;factors.push({name:'Inst Selling',impact:-7,bull:false});}
+  const ichi=h1?.ichimoku;if(ichi?.bullish){score+=10;factors.push({name:'Ichi Full Bull',impact:+10,bull:true});}else if(ichi?.bearish){score-=10;factors.push({name:'Ichi Full Bear',impact:-10,bull:false});}
+  if(BTC.volatilityRegime?.label==='NORMAL'){score+=3;factors.push({name:'Vol Normal',impact:+3,bull:true});}else if(BTC.volatilityRegime?.label==='HIGH'||BTC.volatilityRegime?.label==='EXTREME'){score-=4;factors.push({name:'Vol Tinggi',impact:-4,bull:false});}
+  if(BTC.session?.includes('Overlap')){score+=5;factors.push({name:'Best Session',impact:+5,bull:true});}
+  if(BTC.cmf>0.1){score+=5;factors.push({name:'CMF Positif',impact:+5,bull:true});}else if(BTC.cmf<-0.1){score-=5;factors.push({name:'CMF Negatif',impact:-5,bull:false});}
+  // BTC-specific: DXY inverse (borrow from APST)
+  if(APST.dxy?.changePct<-0.3){score+=5;factors.push({name:'DXY Lemah',impact:+5,bull:true});}else if(APST.dxy?.changePct>0.3){score-=4;factors.push({name:'DXY Kuat',impact:-4,bull:false});}
+  score=clamp(Math.round(score),0,100);
+  const label=score>=75?'VERY BULLISH':score>=60?'BULLISH':score>=45?'NEUTRAL':score>=30?'BEARISH':'VERY BEARISH';
+  const color=score>=65?'#10B981':score>=50?'#F59E0B':'#EF4444';
+  btcSentimentCache={score,label,color,factors:factors.slice(0,8),ts:Date.now()};
+  return btcSentimentCache;
+}
+
+function renderAllBTC(){
+  renderBTCPrice();renderBTCVolatilityRegime();renderBTCSignal();
+  renderBTCSniperCard();renderBTCLimitOrderCard();renderBTCOBFVG();
+  renderBTCLiquidity();renderBTCVWAP();renderBTCSentiment();
+  renderBTCIchimoku();renderBTCDivergence();renderBTCTFGrid();
+  renderBTCIndicators();renderBTCEMA();renderBTCSR();renderBTCPatterns();
+  renderBTCOrderType();drawBTCMiniChart();renderBTCFib();renderBTCElliott();renderBTCOrderFlow();
+}
+
+function renderBTCPrice(){
+  const{price,prevClose,dayHigh,dayLow,session}=BTC;
+  const pEl=$b('btc-price-val');if(pEl)pEl.textContent=price?'$'+price.toFixed(0):'--';
+  const chg=prevClose>0?price-prevClose:0,pct=prevClose>0?chg/prevClose*100:0;
+  const chgEl=$b('btc-price-change');if(chgEl){chgEl.textContent=(chg>=0?'+':'')+'$'+Math.abs(chg).toFixed(0);chgEl.style.color=chg>=0?'#10B981':'#EF4444';}
+  const pctEl=$b('btc-price-pct');if(pctEl){pctEl.textContent=(pct>=0?'+':'')+pct.toFixed(2)+'%';pctEl.style.color=pct>=0?'#10B981':'#EF4444';}
+  const mb=$b('btc-market-badge');if(mb){const open=isMarketOpen();mb.className='badge '+(open?'b-buy':'b-closed');mb.textContent=open?'MARKET OPEN':'MARKET CLOSED';}
+  const atr=BTC.tfData.H1?.atr;const atrEl=$b('btc-atr-num');if(atrEl)atrEl.textContent=atr?'$'+atr.toFixed(0):'--';
+  const atrV=$b('btc-atr-val');if(atrV)atrV.textContent=atr?'ATR: $'+atr.toFixed(0):'ATR: --';
+  const rng=$b('btc-range-val');if(rng)rng.textContent=dayHigh&&dayLow?'$'+dayLow.toFixed(0)+'-$'+dayHigh.toFixed(0):'--';
+  const sp=$b('btc-spread-val');if(sp)sp.textContent=atr?'$'+(atr*0.005).toFixed(0):'--';
+  const sv=$b('btc-vol-regime');if(sv){sv.textContent=BTC.volatilityRegime.label;sv.style.color=BTC.volatilityRegime.label==='HIGH'||BTC.volatilityRegime.label==='EXTREME'?'#EF4444':'#10B981';}
+  const ss=$b('btc-session-val');if(ss){ss.textContent=session||'--';}
+}
+function renderBTCVolatilityRegime(){
+  const vr=BTC.volatilityRegime;if(!vr)return;
+  const badge=$b('btc-volatility-badge');if(badge){badge.className='badge '+(vr.label==='HIGH'||vr.label==='EXTREME'?'b-vol-high':vr.label==='LOW'||vr.label==='ULTRA LOW'?'b-vol-low':'b-vol-med');badge.textContent='VOL:'+vr.label;}
+  const vb=$b('btc-vol-badge');if(vb){vb.className='badge '+(vr.label==='HIGH'||vr.label==='EXTREME'?'b-vol-high':vr.label==='LOW'||vr.label==='ULTRA LOW'?'b-vol-low':'b-vol-med');vb.textContent=vr.label;}
+  const needle=$b('btc-vol-needle');if(needle)needle.style.left=clamp(vr.pct,2,98)+'%';
+  const ar=$b('btc-atr-ratio');if(ar){ar.textContent=vr.ratio+'x';ar.style.color=vr.ratio>1.5?'#EF4444':vr.ratio<0.8?'#10B981':'#F7931A';}
+  const bbW=$b('btc-bb-width');if(bbW)bbW.textContent=vr.bbWidth?vr.bbWidth.toFixed(2)+'%':'--';
+  const sm=$b('btc-scalp-mode');if(sm){sm.textContent=vr.scalp;sm.style.color=vr.label==='EXTREME'?'#EF4444':vr.label==='HIGH'?'#F97316':'#10B981';}
+}
+function renderBTCSignal(){
+  const{composite,signal,eqs,session}=BTC;
+  const sm=$b('btc-signal-main');if(sm){sm.className=sigCls(signal);sm.textContent=signal;sm.style.color=sigColor(signal);}
+  const sc=$b('btc-signal-score');if(sc){sc.textContent=composite;sc.style.color=sigColor(signal);}
+  const er=$b('btc-eqs-ring');if(er){er.className='eqs-ring eqs-'+clamp(eqs,1,10);er.textContent=eqs;}
+  const sub=$b('btc-signal-sub');if(sub)sub.textContent='Score '+composite+'/100 EQS '+eqs+'/10 '+session+' V7';
+  const cn=$b('btc-conf-needle');if(cn)cn.style.left=clamp(composite,2,98)+'%';
+  const card=$b('btc-signal-card');if(card){card.style.borderColor=composite>=62?'rgba(16,185,129,.45)':composite<=38?'rgba(239,68,68,.45)':'rgba(247,147,26,.3)';}
+  // badges
+  const bEl=$b('btc-signal-badges');if(!bEl)return;
+  let html='<span class="badge '+badgeCls(signal)+'">'+signal+'</span><span class="badge b-gold-lvl">EQS '+eqs+'/10</span>';
+  const tvs=Object.values(BTC.tfData).filter(Boolean),bulls=tvs.filter(d=>d.normalized>55).length,bears=tvs.filter(d=>d.normalized<45).length;
+  if(bulls>=4)html+='<span class="badge b-buy">MTF '+bulls+'/5 BULL</span>';else if(bears>=4)html+='<span class="badge b-sell">MTF '+bears+'/5 BEAR</span>';
+  const h1=BTC.tfData.H1;
+  if(h1?.macd?.crossUp)html+='<span class="badge b-buy">MACD UP</span>';if(h1?.macd?.crossDn)html+='<span class="badge b-sell">MACD DN</span>';
+  if(h1?.supertrend?.justBullCross)html+='<span class="badge b-st-bull">ST BULL</span>';else if(h1?.supertrend?.justBearCross)html+='<span class="badge b-st-bear">ST BEAR</span>';
+  if(h1?.marketStructure?.msb)html+='<span class="badge b-msb">MSB!</span>';if(h1?.squeeze?.sqzOn)html+='<span class="badge b-sqz">SQZ!</span>';
+  if(h1?.ichimoku?.bullish)html+='<span class="badge b-ichi-bull">ICHI BULL</span>';else if(h1?.ichimoku?.bearish)html+='<span class="badge b-ichi-bear">ICHI BEAR</span>';
+  if(BTC.candleConfirm?.confirmed)html+='<span class="badge b-confirm">CANDLE OK</span>';
+  if((BTC.orderBlocks||[]).some(ob=>!ob.mitigated))html+='<span class="badge b-ob-bull">OB</span>';
+  if((BTC.fvgList||[]).some(f=>!f.filled))html+='<span class="badge b-fvg">FVG</span>';
+  if(BTC.liquidityZones?.sweeps?.length>0)html+='<span class="badge b-sweep">SWEEP!</span>';
+  const lo=BTC.limitOrders;if(lo?.buyLimit?.valid)html+='<span class="badge b-blimit">BL@$'+lo.buyLimit.zone.toFixed(0)+'</span>';if(lo?.sellLimit?.valid)html+='<span class="badge b-slimit">SL@$'+lo.sellLimit.zone.toFixed(0)+'</span>';
+  const sscls=session?.includes('Overlap')?'b-ovlp':session==='London'?'b-ldn':session==='New York'?'b-ny':'b-asia';html+='<span class="badge '+sscls+'">'+(session||'--')+'</span>';
+  bEl.innerHTML=html;
+  // candle confirm
+  const cc=BTC.candleConfirm;const cb=$b('btc-candle-confirm-badge');if(cb){cb.className='badge '+(cc.confirmed?'b-confirm':'b-noconf');cb.textContent=cc.confirmed?'CONFIRMED':'PENDING';}
+  const cd=$b('btc-candle-confirm-desc');if(cd)cd.textContent=cc.desc||'--';
+  const cp=$b('btc-cc-pattern');if(cp){cp.textContent=cc.pattern||'--';cp.style.color=cc.confirmed?'#10B981':'#F59E0B';}
+  const ccl=$b('btc-cc-close');if(ccl)ccl.textContent=cc.closePos||'--';
+  const cr=$b('btc-cc-rejection');if(cr)cr.textContent=cc.rejection||'--';
+}
+function renderBTCSniperCard(){
+  const sn=calcBTCSniperV7();if(!sn)return;
+  const pct=sn.pct,rc=pct>=88?'#10B981':pct>=75?'#34D399':pct>=62?'#F7931A':pct>=48?'#F59E0B':'#EF4444';
+  const ring=$b('btc-sniper-ring'),num=$b('btc-sniper-score-num'),pctTxt=$b('btc-sniper-pct-txt'),needle=$b('btc-sniper-needle'),qBadge=$b('btc-sniper-quality-badge');
+  if(ring)ring.style.borderColor=rc;if(num){num.textContent=pct;num.style.color=rc;}if(pctTxt){pctTxt.textContent=pct+'%';pctTxt.style.color=rc;}if(needle)needle.style.left=clamp(pct,2,98)+'%';
+  if(qBadge){qBadge.className='badge '+sn.qualCls;qBadge.textContent=sn.quality;}
+  const fEl=$b('btc-sniper-factors');if(fEl){fEl.innerHTML=sn.factors.map(f=>{const bp=clamp(Math.round((f.pts/f.max)*100),0,100);const bc=f.pts>=f.max*0.75?'#10B981':f.pts>=f.max*0.5?'#F7931A':'#F59E0B';return'<div class="sniper-row '+(f.pts>=f.max*0.75?(sn.isBull?'sniper-row-bull':'sniper-row-bear'):'')+'"><span class="hdr text-[6.5px] text-white/35 uppercase tracking-widest">'+esc(f.name)+'</span><div><span class="badge '+f.cls+'" style="font-size:7px">'+esc(f.status)+'</span><div class="bar-wrap mt-1" style="height:3px"><div class="bar-fill" style="width:'+bp+'%;background:'+bc+'"></div></div></div><span class="hdr text-[8px] font-black" style="color:'+bc+'">'+f.pts+'/'+f.max+'</span></div>';}).join('');}
+  const dec=$b('btc-sniper-decision');if(dec){const cc=BTC.candleConfirm,vr=BTC.volatilityRegime;if(pct>=88&&cc?.confirmed)dec.innerHTML='<span style="color:#10B981;font-weight:900">SNIPER ENTRY BTC!</span> '+pct+'%<br>Arah: <b>'+(sn.isBull?'LONG':'SHORT')+'</b>';else if(sn.shouldEnter&&cc?.confirmed)dec.innerHTML='<span style="color:#10B981">ENTRY OK</span> '+pct+'%';else if(sn.shouldEnter)dec.innerHTML='<span style="color:#F59E0B">TUNGGU CANDLE</span> '+pct+'%';else dec.innerHTML='<span style="color:#F59E0B">TUNGGU</span> Score '+pct+'% (min 72%)';}
+}
+function renderBTCLimitOrderCard(){
+  const lo=BTC.limitOrders;if(!lo)return;const price=BTC.price;
+  const priBadge=$b('btc-limit-priority-badge');
+  if(lo.buyLimit?.valid&&lo.sellLimit?.valid){if(priBadge){priBadge.className='badge b-v6';priBadge.textContent='BL+SL VALID';}}else if(lo.buyLimit?.valid){if(priBadge){priBadge.className='badge b-blimit';priBadge.textContent='BL VALID';}}else if(lo.sellLimit?.valid){if(priBadge){priBadge.className='badge b-slimit';priBadge.textContent='SL VALID';}}else{if(priBadge){priBadge.className='badge b-off';priBadge.textContent='NO LIMIT';}}
+  if(lo.buyLimit){const bl=lo.buyLimit;const blz=$b('btc-bl-zone');if(blz)blz.textContent='$'+bl.zone.toFixed(0);const blb=$b('btc-bl-basis');if(blb)blb.textContent=bl.basis||'--';const bls=$b('btc-bl-sl');if(bls)bls.textContent='$'+bl.sl.toFixed(0);const blt=$b('btc-bl-tp');if(blt)blt.textContent='$'+bl.tp1.toFixed(0)+' / $'+bl.tp2.toFixed(0)+' / $'+bl.tp3.toFixed(0);const blr=$b('btc-bl-conf-ring');if(blr)blr.textContent=(bl.confidence||0)+'%';const bln=$b('btc-bl-note');if(bln){const dist=Math.abs(bl.zone-price).toFixed(0);bln.textContent=bl.valid?'Pasang BUY LIMIT @ $'+bl.zone.toFixed(0)+' ($'+dist+' dari harga).':'Zona tidak valid.';}
+  }else{const bln=$b('btc-bl-note');if(bln)bln.textContent='Tidak ada zona Buy Limit.';}
+  if(lo.sellLimit){const sl=lo.sellLimit;const slz=$b('btc-sl-zone');if(slz)slz.textContent='$'+sl.zone.toFixed(0);const slb=$b('btc-sl-basis');if(slb)slb.textContent=sl.basis||'--';const sls=$b('btc-sl-sl');if(sls)sls.textContent='$'+sl.sl.toFixed(0);const slt=$b('btc-sl-tp');if(slt)slt.textContent='$'+sl.tp1.toFixed(0)+' / $'+sl.tp2.toFixed(0)+' / $'+sl.tp3.toFixed(0);const slr=$b('btc-sl-conf-ring');if(slr)slr.textContent=(sl.confidence||0)+'%';const sln=$b('btc-sl-note');if(sln){const dist=Math.abs(sl.zone-price).toFixed(0);sln.textContent=sl.valid?'Pasang SELL LIMIT @ $'+sl.zone.toFixed(0)+' ($'+dist+' dari harga).':'Zona tidak valid.';}
+  }else{const sln=$b('btc-sl-note');if(sln)sln.textContent='Tidak ada zona Sell Limit.';}
+}
+function renderBTCOrderType(){
+  const h1=BTC.tfData.H1,price=BTC.price;if(!h1||!price)return;
+  const vr=BTC.volatilityRegime,atr=h1.atr||1000,slMult=vr?.mult||1.2,bull=BTC.composite>=55,bear=BTC.composite<=45,conf=clamp(BTC.composite,0,99);
+  const psar=h1.psar;
+  const buySL=psar&&psar.bullish&&price-psar.value<atr*slMult*1.5?psar.value:price-atr*slMult;
+  const sellSL=psar&&!psar.bullish&&psar.value-price<atr*slMult*1.5?psar.value:price+atr*slMult;
+  const buySLDist=Math.max(0.1,price-buySL),sellSLDist=Math.max(0.1,sellSL-price);
+  const s=(id,v)=>{const e=$b(id);if(e)e.textContent=v;};
+  s('btc-ot-buy-entry','$'+price.toFixed(0));s('btc-ot-buy-sl','$'+buySL.toFixed(0));s('btc-ot-buy-tp1','$'+(price+buySLDist*1.5).toFixed(0));
+  s('btc-ot-sell-entry','$'+price.toFixed(0));s('btc-ot-sell-sl','$'+sellSL.toFixed(0));s('btc-ot-sell-tp1','$'+(price-sellSLDist*1.5).toFixed(0));
+  const bur=$b('btc-ot-buy-ring');if(bur)bur.textContent=conf+'%';const ser=$b('btc-ot-sell-ring');if(ser)ser.textContent=(100-conf)+'%';
+  const sn=calcBTCSniperV7();let priority='wait';if(sn?.shouldEnter){if(bull)priority='buy';else if(bear)priority='sell';}else{if(bull)priority='buystop';else if(bear)priority='sellstop';}
+  const pb=$b('btc-ot-priority-badge');if(pb){const pm={buy:{cls:'b-sb',lbl:'BUY MARKET'},sell:{cls:'b-ss',lbl:'SELL MARKET'},buystop:{cls:'b-buy',lbl:'BUY STOP'},sellstop:{cls:'b-sell',lbl:'SELL STOP'},wait:{cls:'b-warn',lbl:'TUNGGU'}};const p=pm[priority]||pm.wait;pb.className='badge '+p.cls;pb.textContent=p.lbl;}
+  const sum=$b('btc-ot-summary');if(sum)sum.textContent='ATR:$'+atr.toFixed(0)+'x'+slMult+'('+vr.label+') Score:'+BTC.composite+'/100';
+  const bcard=$b('btc-ot-buy-card');if(bcard){bcard.classList.toggle('ot-active',priority==='buy');bcard.classList.toggle('ot-inactive',priority!=='buy');}
+  const scard=$b('btc-ot-sell-card');if(scard){scard.classList.toggle('ot-active',priority==='sell');scard.classList.toggle('ot-inactive',priority!=='sell');}
+}
+function renderBTCOBFVG(){
+  const obs=BTC.orderBlocks||[],fvgs=BTC.fvgList||[],price=BTC.price;
+  const badge=$b('btc-ob-badge');const hasBull=obs.some(ob=>ob.type==='bull'&&!ob.mitigated),hasBear=obs.some(ob=>ob.type==='bear'&&!ob.mitigated);
+  if(badge){if(hasBull&&hasBear){badge.className='badge b-neu';badge.textContent='OB BOTH';}else if(hasBull){badge.className='badge b-ob-bull';badge.textContent='BULL OB';}else if(hasBear){badge.className='badge b-ob-bear';badge.textContent='BEAR OB';}else{badge.className='badge b-off';badge.textContent='NO OB';}}
+  const smc=BTC.smcBias||{zone:'EQUILIBRIUM',eq:price,posPct:50};
+  const smcBadge=$b('btc-smc-bias-badge');if(smcBadge){smcBadge.className='badge '+(smc.zone==='PREMIUM'?'b-premium':smc.zone==='DISCOUNT'?'b-discount':'b-eq');smcBadge.textContent=smc.zone;}
+  const smcZone=$b('btc-smc-zone');if(smcZone){smcZone.textContent=smc.zone;smcZone.style.color=smc.zone==='PREMIUM'?'#F87171':smc.zone==='DISCOUNT'?'#34D399':'#F7931A';}
+  const smcEq=$b('btc-smc-eq');if(smcEq)smcEq.textContent='$'+smc.eq.toFixed(0);
+  const smcPos=$b('btc-smc-pos-pct');if(smcPos){smcPos.textContent=(smc.posPct||50)+'%';smcPos.style.color=smc.posPct>62?'#F87171':smc.posPct<38?'#34D399':'#F7931A';}
+  const atr=BTC.tfData.H1?.atr||1000;
+  const obList=$b('btc-ob-list');if(obList){obList.innerHTML=obs.length?obs.map(ob=>{const col=ob.type==='bull'?'#10B981':'#EF4444',near=Math.abs(ob.mid-price)<atr;return'<div class="ob-block '+(ob.type==='bull'?'ob-bull':'ob-bear')+(ob.mitigated?' ob-mitigated':'')+'"><div class="flex justify-between items-center mb-0.5"><span class="hdr text-[7.5px] font-bold" style="color:'+col+'">'+(ob.type==='bull'?'BULL OB':'BEAR OB')+(near?' NEAR':'')+(ob.mitigated?' [MIT]':'')+'</span><span class="text-[6.5px] text-white/35">'+ob.age+'c ago</span></div><div class="text-[8px]"><span style="color:'+col+'">H:$'+ob.high.toFixed(0)+' L:$'+ob.low.toFixed(0)+'</span></div></div>';}).join(''):'<p class="text-[7.5px] text-white/22 py-1">Tidak ada OB aktif.</p>';}
+  const fvgList=$b('btc-fvg-list');if(fvgList){fvgList.innerHTML=fvgs.length?fvgs.map(fvg=>{const col=fvg.type==='bull'?'#06B6D4':'#F97316',near=Math.abs(fvg.mid-price)<atr;return'<div class="fvg-block"><div class="flex justify-between items-center mb-0.5"><span class="hdr text-[7.5px] font-bold" style="color:'+col+'">'+(fvg.type==='bull'?'BULL FVG':'BEAR FVG')+(near?' NEAR':'')+(fvg.filled?' [FILLED]':'')+'</span><span class="text-[6.5px] text-white/35">$'+fvg.size.toFixed(0)+' '+fvg.age+'c ago</span></div><div class="text-[8px]"><span style="color:'+col+'">$'+fvg.bot.toFixed(0)+'-$'+fvg.top.toFixed(0)+'</span></div></div>';}).join(''):'<p class="text-[7.5px] text-white/22 py-1">Tidak ada FVG aktif.</p>';}
+}
+function renderBTCLiquidity(){
+  const liq=BTC.liquidityZones;if(!liq)return;
+  const badge=$b('btc-liq-badge');if(liq.sweeps?.length>0){if(badge){badge.className='badge b-sweep';badge.textContent='SWEEP!';}}else if(liq.nearEqH||liq.nearEqL){if(badge){badge.className='badge b-liq';badge.textContent='NEAR LIQ';}}else{if(badge){badge.className='badge b-off';badge.textContent='NO SWEEP';}}
+  const eqhEl=$b('btc-liq-eqh');if(eqhEl){eqhEl.textContent=liq.eqH?'$'+liq.eqH.val.toFixed(0):'--';eqhEl.style.color=liq.nearEqH?'#EC4899':'#F87171';}
+  const eqhD=$b('btc-liq-eqh-desc');if(eqhD)eqhD.textContent=liq.eqH?'EqH '+liq.eqH.age+'c ago'+(liq.nearEqH?' NEAR':''):'No EQH';
+  const eqlEl=$b('btc-liq-eql');if(eqlEl){eqlEl.textContent=liq.eqL?'$'+liq.eqL.val.toFixed(0):'--';eqlEl.style.color=liq.nearEqL?'#EC4899':'#34D399';}
+  const eqlD=$b('btc-liq-eql-desc');if(eqlD)eqlD.textContent=liq.eqL?'EqL '+liq.eqL.age+'c ago'+(liq.nearEqL?' NEAR':''):'No EQL';
+  const zList=$b('btc-liq-zones-list');if(zList)zList.innerHTML=(liq.sweeps||[]).map(sw=>'<div class="liq-zone"><p class="hdr text-[7.5px] font-bold text-[#EC4899]">'+sw.type.replace(/_/g,' ').toUpperCase()+' @ $'+sw.level.toFixed(0)+'</p><p class="text-[8px] text-white/55 mt-0.5">'+esc(sw.desc)+'</p></div>').join('');
+  const desc=$b('btc-liq-desc');if(desc)desc.textContent=liq.desc||'';
+}
+function renderBTCVWAP(){
+  const vwap=BTC.vwap,vd=BTC.volumeDelta;
+  const vwapBadge=$b('btc-vwap-badge');if(vwap&&vwapBadge){vwapBadge.className='badge '+(vwap.bullishBias?'b-vwap-bull':'b-vwap-bear');vwapBadge.textContent=vwap.bullishBias?'ABOVE VWAP':'BELOW VWAP';}
+  if(vwap){const vv=$b('btc-vwap-val');if(vv)vv.textContent=vwap.intraday?'$'+vwap.intraday.toFixed(0):'--';const vd2=$b('btc-vwap-dist');if(vd2&&vwap.intraDist!=null){vd2.textContent=(vwap.intraDist>=0?'+':'')+vwap.intraDist.toFixed(2)+'%';vd2.style.color=vwap.intraDist>=0?'#10B981':'#EF4444';}const vpos=$b('btc-vwap-pos-badge');if(vpos){vpos.className='badge '+(vwap.aboveIntra?'b-vwap-bull':'b-vwap-bear');vpos.textContent=vwap.aboveIntra?'ABOVE':'BELOW';}}
+  if(vd){const buyBar=$b('btc-vd-buy-bar');if(buyBar)buyBar.style.width=clamp(vd.buyPct,5,95)+'%';const sellBar=$b('btc-vd-sell-bar');if(sellBar)sellBar.style.width=clamp(vd.sellPct,5,95)+'%';const bp=$b('btc-vd-buy-pct');if(bp)bp.textContent=vd.buyPct+'%';const sp=$b('btc-vd-sell-pct');if(sp)sp.textContent=vd.sellPct+'%';const vdBadge=$b('btc-vd-badge');if(vdBadge){vdBadge.className='badge '+(vd.climax?'b-liq':vd.buyPct>65?'b-buy':vd.buyPct<35?'b-sell':'b-neu');vdBadge.textContent=vd.climax?'CLIMAX!':vd.pressure;}}
+}
+function renderBTCSentiment(){
+  const sd=calcBTCSentimentScore();
+  const needle=$b('btc-sentiment-needle'),scoreEl=$b('btc-sentiment-score'),labelEl=$b('btc-sentiment-label'),factorsEl=$b('btc-sentiment-factors'),badge=$b('btc-sentiment-badge');
+  if(needle)needle.style.left=clamp(sd.score,2,98)+'%';if(scoreEl){scoreEl.textContent=sd.score;scoreEl.style.color=sd.color;}if(labelEl){labelEl.textContent=sd.label;labelEl.style.color=sd.color;}if(badge){badge.className='badge '+(sd.score>=60?'b-buy':sd.score<=40?'b-sell':'b-neu');badge.textContent=sd.label;}if(factorsEl)factorsEl.innerHTML=sd.factors.map(f=>'<div class="flex justify-between items-center py-0.5"><span class="text-[7.5px] text-white/50">'+esc(f.name)+'</span><span class="font-bold text-[8px]" style="color:'+(f.bull?'#10B981':'#EF4444')+'">'+(f.impact>0?'+':'')+f.impact+'</span></div>').join('');
+}
+function renderBTCIchimoku(){
+  const h1=BTC.tfData.H1;const ichi=h1?.ichimoku;const badge=$b('btc-ichi-badge');if(!ichi){if(badge){badge.className='badge b-off';badge.textContent='NO DATA';}return;}
+  if(badge){if(ichi.bullish){badge.className='badge b-ichi-bull';badge.textContent='FULL BULL';}else if(ichi.bearish){badge.className='badge b-ichi-bear';badge.textContent='FULL BEAR';}else{badge.className='badge b-neu';badge.textContent='MIXED';}}
+  const t=$b('btc-ichi-tenkan');if(t)t.textContent='$'+ichi.tenkan.toFixed(0);const k=$b('btc-ichi-kijun');if(k)k.textContent='$'+ichi.kijun.toFixed(0);
+  const tkBadge=$b('btc-ichi-tk-badge');if(tkBadge){tkBadge.className='badge '+(ichi.tkCross?'b-buy':'b-sell');tkBadge.textContent=ichi.tkCross?'T>K BULL':'T<K BEAR';}
+  const kumoLabel=$b('btc-ichi-kumo-label');if(kumoLabel){kumoLabel.textContent=ichi.aboveKumo?'ABOVE KUMO':ichi.belowKumo?'BELOW KUMO':'IN KUMO';kumoLabel.style.color=ichi.aboveKumo?'#10B981':ichi.belowKumo?'#EF4444':'#F7931A';}
+  const kumoBadge=$b('btc-ichi-kumo-badge');if(kumoBadge){kumoBadge.className='badge '+(ichi.bullishKumo?'b-ichi-bull':'b-ichi-bear');kumoBadge.textContent=ichi.bullishKumo?'BULL KUMO':'BEAR KUMO';}
+  const overall=$b('btc-ichi-overall');if(overall)overall.textContent=ichi.bullish?'FULL BULL: Atas Kumo, T>K, Chikou bull.':ichi.bearish?'FULL BEAR: Bawah Kumo, T<K, Chikou bear.':'MIXED: Score '+ichi.score+'.';
+  const ibadges=$b('btc-ichi-badges');if(ibadges)ibadges.innerHTML='<span class="badge '+(ichi.aboveKumo?'b-ichi-bull':ichi.belowKumo?'b-ichi-bear':'b-warn')+'">'+(ichi.aboveKumo?'Above Kumo':ichi.belowKumo?'Below Kumo':'In Kumo')+'</span><span class="badge '+(ichi.tkCross?'b-buy':'b-sell')+'">'+(ichi.tkCross?'T>K':'T<K')+'</span><span class="badge '+(ichi.bullishKumo?'b-ichi-bull':'b-ichi-bear')+'">'+(ichi.bullishKumo?'Bull':'Bear')+' Kumo</span>';
+}
+function renderBTCDivergence(){
+  const h1=BTC.tfData.H1;const hdivs=h1?.hiddenDivs||[];const mainBadge=$b('btc-div-main-badge');
+  const hasBull=hdivs.some(d=>d.type==='regular_bull'||d.type==='hidden_bull'),hasBear=hdivs.some(d=>d.type==='regular_bear'||d.type==='hidden_bear');
+  if(mainBadge){if(hasBull&&hasBear){mainBadge.className='badge b-neu';mainBadge.textContent='MIXED';}else if(hasBull){mainBadge.className='badge b-div-bull';mainBadge.textContent='BULL DIV';}else if(hasBear){mainBadge.className='badge b-div-bear';mainBadge.textContent='BEAR DIV';}else{mainBadge.className='badge b-off';mainBadge.textContent='NO DIV';}}
+  const vList=$b('btc-div-list');if(vList){vList.innerHTML=hdivs.length?hdivs.map(d=>{const isBull=d.type==='regular_bull'||d.type==='hidden_bull';const col=isBull?'#A78BFA':'#F87171';return'<div class="flex gap-2 items-start py-1.5 border-b border-white/[.04]"><span class="badge '+(isBull?'b-div-bull':'b-div-bear')+'" style="font-size:6.5px">'+(d.type.includes('hidden')?'HIDDEN':'REG')+'</span><div class="flex-1"><p class="font-bold text-[8.5px]" style="color:'+col+'">'+d.type.replace(/_/g,' ').toUpperCase()+'</p><p class="text-[7.5px] text-white/50 mt-0.5">'+esc(d.desc)+'</p></div></div>';}).join(''):'<p class="text-[7.5px] text-white/25 py-1">Tidak ada divergence.</p>';}
+  const sumEl=$b('btc-div-summary');if(sumEl)sumEl.textContent=hasBull?'Divergence bullish - potensi reversal UP.':hasBear?'Divergence bearish.':'Tidak ada divergence.';
+}
+function renderBTCTFGrid(){
+  ['M5','M15','H1','H4','D1'].forEach(tf=>{const d=BTC.tfData[tf];const cell=$b('btc-tf-'+tf),sig=$b('btc-tf-'+tf+'-sig'),rsi=$b('btc-tf-'+tf+'-rsi');if(!d){if(cell)cell.className='tf-cell tf-n';if(sig)sig.textContent='--';if(rsi)rsi.textContent='--';return;}if(cell)cell.className=tfCls(d.signal);if(sig){sig.textContent=sigShort(d.signal);sig.style.color=sigColor(d.signal);}if(rsi){rsi.textContent=d.rsi!=null?fNum(d.rsi,0):'--';rsi.style.color=d.rsi>70?'#EF4444':d.rsi<30?'#10B981':'#F7931A';}});
+  const tvs=Object.values(BTC.tfData).filter(Boolean),bulls=tvs.filter(d=>d.normalized>55).length,bears=tvs.filter(d=>d.normalized<45).length;
+  const tc=$b('btc-tf-conf-txt');if(tc){if(bulls>=4)tc.innerHTML='<span style="color:#10B981">'+bulls+'/5 BULLISH</span>';else if(bears>=4)tc.innerHTML='<span style="color:#EF4444">'+bears+'/5 BEARISH</span>';else tc.innerHTML='<span style="color:rgba(255,255,255,.25)">'+bulls+' BULL / '+bears+' BEAR</span>';}
+}
+function renderBTCIndicators(){
+  const h1=BTC.tfData.H1;if(!h1)return;
+  if(h1.rsi!=null){const rv=$b('btc-rsi-val');if(rv){rv.textContent=fNum(h1.rsi,1);rv.style.color=h1.rsi>70?'#EF4444':h1.rsi<30?'#10B981':'#F7931A';}const nd=$b('btc-rsi-needle');if(nd)nd.style.left=clamp(h1.rsi,1,99)+'%';const rb=$b('btc-rsi-badge');if(rb){rb.textContent=h1.rsi>70?'OVERBOUGHT':h1.rsi<30?'OVERSOLD':'NEUTRAL';rb.className='badge '+(h1.rsi>70?'b-sell':h1.rsi<30?'b-buy':'b-neu');}}
+  if(h1.macd){const mb=$b('btc-macd-bars');if(mb&&h1.macd.histBars){const mxH=Math.max(...h1.macd.histBars.map(Math.abs))||1;mb.innerHTML=h1.macd.histBars.map(v=>{const pct=clamp(Math.abs(v)/mxH*100,4,100);return'<div class="macd-bar '+(v>=0?'macd-pos':'macd-neg')+'" style="height:'+pct+'%"></div>';}).join('');}const hv=$b('btc-macd-hist-val');if(hv){hv.textContent=(h1.macd.histogram>=0?'+':'')+h1.macd.histogram.toFixed(4);hv.style.color=h1.macd.histogram>=0?'#10B981':'#EF4444';}const mBadge=$b('btc-macd-badge');if(mBadge){mBadge.textContent=h1.macd.crossUp?'CROSS UP':h1.macd.crossDn?'CROSS DN':h1.macd.histogram>0?'BULL':'BEAR';mBadge.className='badge '+(h1.macd.crossUp?'b-sb':h1.macd.crossDn?'b-ss':h1.macd.histogram>0?'b-buy':'b-sell');}}
+  if(h1.bb){const bbP=$b('btc-bb-pct'),bbBar=$b('btc-bb-bar'),bbBdg=$b('btc-bb-badge'),bbW=$b('btc-bb-width-val');if(bbP)bbP.textContent=Math.round(h1.bb.bbPos)+'%';if(bbBar){bbBar.style.width=clamp(h1.bb.bbPos,1,99)+'%';}if(bbW)bbW.textContent='W:'+fNum(h1.bb.bbWidth,2)+'%';if(bbBdg){bbBdg.textContent=h1.bb.bbPos>80?'UPPER':h1.bb.bbPos<20?'LOWER':'MID';bbBdg.className='badge '+(h1.bb.bbPos>80?'b-sell':h1.bb.bbPos<20?'b-buy':'b-neu');}}
+  if(h1.stochRSI){const sk=$b('btc-srsi-k'),sd=$b('btc-srsi-d'),sBar=$b('btc-srsi-k-bar'),sBdg=$b('btc-srsi-badge');if(sk){sk.textContent=fNum(h1.stochRSI.k,1);sk.style.color=h1.stochRSI.overbought?'#EF4444':h1.stochRSI.oversold?'#10B981':'#06B6D4';}if(sd)sd.textContent=fNum(h1.stochRSI.d,1);if(sBar)sBar.style.width=clamp(h1.stochRSI.k,1,99)+'%';if(sBdg){sBdg.textContent=h1.stochRSI.crossUp?'CROSS UP':h1.stochRSI.crossDn?'CROSS DN':h1.stochRSI.oversold?'OVERSOLD':h1.stochRSI.overbought?'OB':'NEUTRAL';sBdg.className='badge '+(h1.stochRSI.crossUp?'b-sb':h1.stochRSI.crossDn?'b-ss':h1.stochRSI.oversold?'b-buy':h1.stochRSI.overbought?'b-sell':'b-neu');}}
+  if(h1.adx){const{adx,pdi,mdi,isStrong,isTrending}=h1.adx;const av=$b('btc-adx-val');if(av){av.textContent=fNum(adx,1);av.style.color=isStrong?'#10B981':isTrending?'#F7931A':'#F87171';}const bar=$b('btc-adx-bar');if(bar){bar.style.width=clamp(adx,0,75)/75*100+'%';}const ap=$b('btc-adx-pdi');if(ap)ap.textContent=fNum(pdi,1);const am=$b('btc-adx-mdi');if(am)am.textContent=fNum(mdi,1);const badge=$b('btc-adx-badge');if(badge){badge.textContent=isStrong?(pdi>mdi?'STR BULL':'STR BEAR'):isTrending?(pdi>mdi?'TREND BULL':'TREND BEAR'):'RANGING';badge.className='badge '+(isStrong?'b-buy':isTrending?'b-neu':'b-warn');}const desc=$b('btc-adx-desc');if(desc)desc.textContent='ADX '+adx.toFixed(1)+' - '+(isStrong?'Trend kuat.':isTrending?'Moderat.':'RANGING.');}
+}
+function renderBTCEMA(){
+  const h1=BTC.tfData.H1;if(!h1)return;const price=BTC.price;
+  const sE=(id,posId,val)=>{const el=$b(id);if(!el)return;if(val==null){el.textContent='--';return;}el.textContent='$'+val.toFixed(0);const pos=$b(posId);if(pos&&price){const pct=((price-val)/price)*100;pos.textContent=(pct>=0?'+':'')+Math.abs(pct).toFixed(2)+'%'+(pct>=0?' abv':' blw');pos.style.color=pct>=0?'#10B981':'#EF4444';}};
+  sE('btc-ema9','btc-ema9-pos',h1.ema9);sE('btc-ema20','btc-ema20-pos',h1.ema20);sE('btc-ema50','btc-ema50-pos',h1.ema50);sE('btc-ema200','btc-ema200-pos',h1.ema200);
+  const etb=$b('btc-ema-trend-badge'),ecd=$b('btc-ema-desc');
+  if(h1.ema200&&price){const abv=price>h1.ema200,fb=h1.ema9&&h1.ema20&&h1.ema50&&h1.ema9>h1.ema20&&h1.ema20>h1.ema50&&h1.ema50>h1.ema200&&abv,fb2=h1.ema9&&h1.ema20&&h1.ema50&&h1.ema9<h1.ema20&&h1.ema20<h1.ema50&&h1.ema50<h1.ema200&&!abv;if(etb){if(fb){etb.className='badge b-buy';etb.textContent='FULL BULL';}else if(fb2){etb.className='badge b-sell';etb.textContent='FULL BEAR';}else if(abv){etb.className='badge b-neu';etb.textContent='ABOVE 200';}else{etb.className='badge b-sell';etb.textContent='BELOW 200';}}if(ecd)ecd.textContent=fb?'EMA 9>20>50>200. Trend bullish.':fb2?'EMA 9<20<50<200. Trend bearish.':abv?'Di atas EMA200. Makro bullish.':'Di bawah EMA200.';}
+}
+function renderBTCSR(){
+  const{pivots,fibLevels,price}=BTC;const el=$b('btc-sr-list');if(!el||!price)return;
+  const lvls=[];if(pivots.pp){['r2','r1','pp','s1','s2'].forEach(k=>{const isRes=k.startsWith('r');const cls=k==='pp'?'sr-pp':isRes?'sr-res':'sr-sup';if(pivots[k])lvls.push({p:pivots[k],lbl:k.toUpperCase(),cls});});}
+  if(fibLevels)Object.entries(fibLevels).forEach(([k,v])=>lvls.push({p:v,lbl:'Fib '+k,cls:'sr-fib'}));
+  const h1=BTC.tfData.H1;if(h1?.vwap?.intraday)lvls.push({p:h1.vwap.intraday,lbl:'VWAP',cls:'sr-vwap'});
+  (BTC.orderBlocks||[]).filter(ob=>!ob.mitigated).forEach(ob=>lvls.push({p:ob.mid,lbl:ob.type==='bull'?'Bull OB':'Bear OB',cls:'sr-ob'}));
+  const lo=BTC.limitOrders;if(lo?.buyLimit?.valid)lvls.push({p:lo.buyLimit.zone,lbl:'BUY LIMIT',cls:'sr-blimit'});if(lo?.sellLimit?.valid)lvls.push({p:lo.sellLimit.zone,lbl:'SELL LIMIT',cls:'sr-slimit'});
+  lvls.sort((a,b)=>b.p-a.p);
+  el.innerHTML=lvls.map(l=>{const dist=((l.p-price)/price)*100,near=Math.abs(l.p-price)/price<.003;const col=l.cls==='sr-res'?'#F87171':l.cls==='sr-sup'?'#10B981':l.cls==='sr-pp'?'#F7931A':l.cls==='sr-fib'?'#A78BFA':l.cls==='sr-ob'?'#EC4899':l.cls==='sr-blimit'?'#10B981':l.cls==='sr-slimit'?'#EF4444':'#06B6D4';return'<div class="sr-row '+l.cls+(near?' sr-near':'')+'"><span style="color:'+col+';font-size:8px;font-family:Orbitron,sans-serif">'+esc(l.lbl)+(near?' ◀':'')+'</span><span style="font-family:Orbitron,sans-serif;font-size:9.5px;font-weight:700">$'+l.p.toFixed(0)+'</span><span style="font-size:7.5px;color:'+(dist>=0?'#F87171':'#10B981')+'">'+(dist>=0?'+':'')+dist.toFixed(2)+'%</span></div>';}).join('');
+  const rl=$b('btc-round-lvls');if(rl){const base=Math.round(price/1000)*1000;const rLvls=[];for(let i=-5;i<=5;i++)rLvls.push(base+i*1000);rl.innerHTML=rLvls.filter(v=>v>0).map(l=>{const near=Math.abs(l-price)/price<.005;return'<span class="badge '+(near?'b-gold-lvl':'b-off')+'" style="'+(near?'':'background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);color:rgba(255,255,255,.28)')+'">$'+l.toLocaleString()+(near?' ◀':'')+'</span>';}).join('');}
+}
+function renderBTCPatterns(){
+  const h1=BTC.tfData.H1,pats=h1?.patterns||[],el=$b('btc-patterns-list'),cnt=$b('btc-pat-count');
+  if(cnt){cnt.textContent=pats.length+' PATTERNS';cnt.className='badge '+(pats.length>0?'b-pat':'b-off');}
+  if(!el)return;if(!pats.length){el.innerHTML='<p class="text-[8px] text-white/22 py-1">Tidak ada pattern signifikan.</p>';return;}
+  el.innerHTML=pats.map(p=>{const col=p.dir==='bull'?'#10B981':p.dir==='bear'?'#EF4444':'#F7931A';return'<div class="pattern-chip mb-1" style="border-color:'+col+'33;background:'+col+'0d"><span class="text-[9px] font-bold" style="color:'+col+'">'+(p.dir==='bull'?'UP':p.dir==='bear'?'DN':'--')+'</span><div><p class="hdr font-black text-[8.5px]" style="color:'+col+'">'+esc(p.name)+'</p><p class="text-[7.5px] text-white/45 mt-0.5">'+esc(p.desc)+'</p></div></div>';}).join('');
+}
+function renderBTCFib(){
+  const candles=rawCandlesBTC;if(!candles||candles.length<20)return;
+  const recent=candles.slice(-50),highs=recent.map(c=>c.h),lows=recent.map(c=>c.l),swingH=Math.max(...highs),swingL=Math.min(...lows),swingHIdx=highs.indexOf(swingH),swingLIdx=lows.indexOf(swingL),isUptrend=swingHIdx>swingLIdx,range=swingH-swingL,price=BTC.price||0;
+  const levels={'0.0%':isUptrend?swingL:swingH,'23.6%':isUptrend?swingL+range*0.236:swingH-range*0.236,'38.2%':isUptrend?swingL+range*0.382:swingH-range*0.382,'50.0%':isUptrend?swingL+range*0.5:swingH-range*0.5,'61.8%':isUptrend?swingL+range*0.618:swingH-range*0.618,'78.6%':isUptrend?swingL+range*0.786:swingH-range*0.786,'100.0%':isUptrend?swingH:swingL,'127.2%':isUptrend?swingH+range*0.272:swingL-range*0.272,'161.8%':isUptrend?swingH+range*0.618:swingL-range*0.618};
+  const badge=$b('btc-fib-badge');if(badge){badge.className='badge '+(isUptrend?'b-buy':'b-sell');badge.textContent=isUptrend?'UPTREND FIB':'DOWNTREND FIB';}
+  const el=$b('btc-fib-v7-list');if(el){const keyLevels=['38.2%','50.0%','61.8%','78.6%'];el.innerHTML=Object.entries(levels).sort((a,b)=>b[1]-a[1]).map(([label,level])=>{const dist=((level-price)/price)*100,isKey=keyLevels.includes(label),isNear=Math.abs(dist)<0.5,isExt=parseFloat(label)>100;const col=isExt?'#8B5CF6':level>price?'#F87171':'#10B981';return'<div class="sr-row '+(isNear?'sr-near':isExt?'sr-fib':level>price?'sr-res':'sr-sup')+'"><span style="color:'+col+';font-size:'+(isKey?'8':'7')+'px;font-family:Orbitron,sans-serif;font-weight:'+(isKey?'700':'400')+'">Fib '+label+(isNear?' ◀':'')+'</span><span style="font-family:Orbitron,sans-serif;font-size:'+(isKey?'10':'9')+'px;font-weight:700">$'+level.toFixed(0)+'</span><span style="font-size:7.5px;color:'+(dist>=0?'#F87171':'#10B981')+'">'+(dist>=0?'+':'')+dist.toFixed(2)+'%</span></div>';}).join('');}
+  const descEl=$b('btc-fib-desc');if(descEl)descEl.textContent='Swing $'+swingL.toFixed(0)+' — $'+swingH.toFixed(0)+' | Range $'+range.toFixed(0);
+}
+function renderBTCElliott(){
+  const candles=rawCandlesBTC;if(!candles||candles.length<30)return;
+  const H=candles.map(c=>c.h),L=candles.map(c=>c.l),C=candles.map(c=>c.c),n=C.length;
+  const pivots=[];for(let i=2;i<n-2;i++){if(H[i]>H[i-1]&&H[i]>H[i-2]&&H[i]>H[i+1]&&H[i]>H[i+2])pivots.push({i,v:H[i],type:'high'});else if(L[i]<L[i-1]&&L[i]<L[i-2]&&L[i]<L[i+1]&&L[i]<L[i+2])pivots.push({i,v:L[i],type:'low'});}
+  const badge=$b('btc-ew-badge'),waveEl=$b('btc-ew-current-wave'),confEl=$b('btc-ew-confidence'),labelEl=$b('btc-ew-label'),targEl=$b('btc-ew-targets');
+  if(pivots.length<5){if(badge){badge.className='badge b-off';badge.textContent='UNCLEAR';}if(waveEl)waveEl.textContent='?';if(labelEl)labelEl.textContent='Need more pivots';return;}
+  const recent=pivots.slice(-7);let bullishWaves=0,bearishWaves=0;for(let i=1;i<recent.length;i++){if(recent[i].type==='high'&&recent[i].v>recent[i-1].v)bullishWaves++;if(recent[i].type==='low'&&recent[i].v<recent[i-1].v)bearishWaves++;}
+  const waves=[];let maxWaveSize=0;for(let i=1;i<recent.length;i++){const size=Math.abs(recent[i].v-recent[i-1].v);waves.push({size,bullish:recent[i].v>recent[i-1].v});if(size>maxWaveSize)maxWaveSize=size;}
+  const w3idx=waves.findIndex(w=>w.size===maxWaveSize);let currentWave='?',confidence=30,label='',color='#F7931A';
+  if(bullishWaves>=2&&bearishWaves<=1){if(recent[recent.length-1].type==='low'){currentWave=w3idx===2||w3idx===3?'3UP':'4DN';confidence=w3idx===2||w3idx===3?72:58;label=w3idx===2||w3idx===3?'WAVE 3 UP - Strongest!':'WAVE 4 - BUY dip!';color='#10B981';}else{currentWave='5UP';confidence=55;label='WAVE 5 UP - Watch reversal';color='#F59E0B';}}
+  else if(bearishWaves>=2&&bullishWaves<=1){if(recent[recent.length-1].type==='high'){currentWave='CDN';confidence=60;label='WAVE C DOWN';color='#EF4444';}else{currentWave='BUP';confidence=50;label='WAVE B UP - SELL zone';color='#F97316';}}
+  else{currentWave='?';confidence=30;label='Wave unclear';}
+  if(badge){badge.className='badge '+(currentWave.includes('UP')||currentWave==='BUP'?'b-ew-bull':'b-ew-bear');badge.textContent='WAVE '+currentWave;}
+  if(waveEl){waveEl.textContent=currentWave;waveEl.style.color=color;}if(confEl){confEl.textContent=confidence+'%';confEl.style.color=confidence>=65?'#10B981':'#F59E0B';}if(labelEl)labelEl.textContent=label;
+  if(targEl&&recent.length>=2){const lastPivot=recent[recent.length-1],prevPivot=recent[recent.length-2],wRange=Math.abs(lastPivot.v-prevPivot.v),t1=lastPivot.type==='low'?lastPivot.v+wRange:lastPivot.v-wRange,t161=lastPivot.type==='low'?lastPivot.v+wRange*1.618:lastPivot.v-wRange*1.618;targEl.innerHTML='<div class="grid grid-cols-2 gap-1.5 mt-1.5"><div class="gp text-center"><p class="text-[6px] text-white/22 hdr">Target 1.0x</p><p class="font-bold text-[9px]" style="color:#F7931A">$'+t1.toFixed(0)+'</p></div><div class="gp text-center"><p class="text-[6px] text-white/22 hdr">Target 1.618x</p><p class="font-bold text-[9px]" style="color:#8B5CF6">$'+t161.toFixed(0)+'</p></div></div>';}
+}
+function renderBTCOrderFlow(){
+  const el=$b('btc-orderflow-heatmap');if(!el)return;
+  const candles=rawCandlesBTC,price=BTC.price;if(!candles||candles.length<20||!price){el.innerHTML='<p class="text-[7.5px] text-white/25 py-2">Memuat order flow...</p>';return;}
+  const atr=calcATR(candles.map(c=>c.h),candles.map(c=>c.l),candles.map(c=>c.c))||1000,numZones=12,zoneSize=atr*0.25,startPrice=price-atr*1.5,zones=[];
+  for(let i=0;i<numZones;i++){const zoneBot=startPrice+i*zoneSize,zoneTop=zoneBot+zoneSize,zoneMid=(zoneBot+zoneTop)/2;let buyVol=0,sellVol=0;candles.slice(-30).forEach(c=>{if(c.h>=zoneBot&&c.l<=zoneTop){const range=c.h-c.l||1,v=c.v||1;buyVol+=v*(c.c-c.l)/range;sellVol+=v*(c.h-c.c)/range;}});const total=buyVol+sellVol||1,avgV=candles.slice(-30).reduce((s,c)=>s+(c.v||1),0)/30||1,intensity=Math.min(1,total/(avgV*3)),type=buyVol>sellVol*1.3?'bid':sellVol>buyVol*1.3?'ask':'neutral';zones.push({mid:zoneMid,buyVol,sellVol,intensity,type,isCurrentZone:price>=zoneBot&&price<zoneTop});}
+  const maxI=Math.max(...zones.map(z=>z.intensity))||1;
+  el.innerHTML=[...zones].reverse().map(zone=>{const bidW=zone.buyVol/(zone.buyVol+zone.sellVol||1)*100,pct=zone.intensity/maxI,isCurrent=zone.isCurrentZone;return'<div class="of-row '+(isCurrent?'of-current':'')+'"><span class="of-price '+(isCurrent?'text-[#F7931A]':'text-white/45')+'">'+(isCurrent?'▶':' ')+' $'+zone.mid.toFixed(0)+'</span><div class="of-bar-wrap"><div class="of-bid" style="width:'+bidW.toFixed(0)+'%;opacity:'+(0.2+pct*0.8)+'"></div><div class="of-ask" style="width:'+(100-bidW).toFixed(0)+'%;opacity:'+(0.2+pct*0.8)+'"></div></div><span class="of-type '+(zone.type==='bid'?'text-[#10B981]':zone.type==='ask'?'text-[#EF4444]':'text-white/25')+'">'+(zone.type==='bid'?'BID':zone.type==='ask'?'ASK':'—')+'</span></div>';}).join('');
+  const badge=$b('btc-of-badge');if(badge){const topBid=zones.filter(z=>z.type==='bid').sort((a,b)=>b.intensity-a.intensity)[0],topAsk=zones.filter(z=>z.type==='ask').sort((a,b)=>b.intensity-a.intensity)[0];if(topBid&&topAsk){badge.className='badge '+(topBid.intensity>topAsk.intensity?'b-buy':'b-sell');badge.textContent=topBid.intensity>topAsk.intensity?'BID WALL':'ASK WALL';}}
+}
+function drawBTCMiniChart(){
+  const canvas=$b('btc-mini-chart');if(!canvas||!rawCandlesBTC.length)return;
+  const container=canvas.parentElement;const displayW=container?Math.max(280,container.clientWidth-24):320;canvas.style.width=displayW+'px';canvas.style.height='180px';canvas.width=displayW*window.devicePixelRatio;canvas.height=180*window.devicePixelRatio;
+  const ctx=canvas.getContext('2d');ctx.scale(window.devicePixelRatio,window.devicePixelRatio);const W=displayW,H=180;ctx.fillStyle='#030200';ctx.fillRect(0,0,W,H);
+  const display=rawCandlesBTC.slice(-50);if(display.length<5)return;
+  const highs=display.map(c=>c.h),lows=display.map(c=>c.l),maxH=Math.max(...highs),minL=Math.min(...lows),priceRange=maxH-minL||1,volH=H*0.15,chartH=H-volH-20,pad=6,chartW=W-pad*2,gap=chartW/display.length,candleW=Math.max(1.5,gap-1),pY=p=>pad+(1-(p-minL)/priceRange)*chartH;
+  ctx.strokeStyle='rgba(255,255,255,0.04)';ctx.lineWidth=0.5;for(let i=0;i<=4;i++){const y=pad+(chartH/4)*i;ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();ctx.fillStyle='rgba(255,255,255,0.18)';ctx.font='7px IBM Plex Mono';ctx.fillText('$'+(maxH-(priceRange/4)*i).toFixed(0),2,y-2);}
+  const closes=display.map(c=>c.c),ema9a=calcEMAArr(closes,9),ema20a=calcEMAArr(closes,20);
+  const drawEMA=(arr,color)=>{if(!arr.length)return;ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();arr.forEach((v,i)=>{const x=pad+(i+display.length-arr.length)*gap+gap/2;const y=pY(v);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();};
+  drawEMA(ema9a,'rgba(6,182,212,0.7)');drawEMA(ema20a,'rgba(249,115,22,0.7)');
+  display.forEach((c,i)=>{const x=pad+i*gap,openY=pY(c.o),closeY=pY(c.c),highY=pY(c.h),lowY=pY(c.l),bull=c.c>=c.o,col=bull?'#F7931A':'#EF4444';ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+gap/2,highY);ctx.lineTo(x+gap/2,lowY);ctx.stroke();const bodyTop=Math.min(openY,closeY),bodyH=Math.max(1,Math.abs(closeY-openY));ctx.fillStyle=col;ctx.fillRect(x+0.5,bodyTop,Math.max(1.5,candleW),bodyH);});
+  const lo=BTC.limitOrders;if(lo?.buyLimit?.valid){const y=pY(lo.buyLimit.zone);if(y>0&&y<chartH){ctx.strokeStyle='rgba(16,185,129,0.7)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#10B981';ctx.font='7px Orbitron,monospace';ctx.fillText('BL $'+lo.buyLimit.zone.toFixed(0),W-50,y-2);}}
+  if(lo?.sellLimit?.valid){const y=pY(lo.sellLimit.zone);if(y>0&&y<chartH){ctx.strokeStyle='rgba(239,68,68,0.7)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#EF4444';ctx.font='7px Orbitron,monospace';ctx.fillText('SL $'+lo.sellLimit.zone.toFixed(0),W-50,y+9);}}
+  if(BTC.price){const y=pY(BTC.price);if(y>0&&y<chartH){ctx.strokeStyle='rgba(247,147,26,0.8)';ctx.lineWidth=1.5;ctx.setLineDash([2,2]);ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='rgba(247,147,26,0.9)';ctx.font='bold 8px Orbitron,monospace';ctx.fillText('$'+BTC.price.toFixed(0),W-55,y-2);}}
+  const vols=display.map(c=>c.v||1),maxV=Math.max(...vols);display.forEach((c,i)=>{const x=pad+i*gap,vH=((c.v||1)/maxV)*volH*0.85;ctx.fillStyle=c.c>=c.o?'rgba(247,147,26,0.2)':'rgba(239,68,68,0.2)';ctx.fillRect(x+0.5,H-vH,Math.max(1.5,candleW),vH);});
+}
+
+function renderBTCGoldCorrelation(){
+  const btcSig=$b('btc-corr-btc-signal'),goldSig=$b('btc-corr-gold-signal');
+  if(btcSig){btcSig.textContent=BTC.signal;btcSig.style.color=sigColor(BTC.signal);}
+  if(goldSig){goldSig.textContent=APST.signal;goldSig.style.color=sigColor(APST.signal);}
+  const btcScore=$b('btc-corr-btc-score');if(btcScore)btcScore.textContent='Score: '+BTC.composite+'/100';
+  const goldScore=$b('btc-corr-gold-score');if(goldScore)goldScore.textContent='Score: '+APST.composite+'/100';
+  const btcH1=BTC.tfData.H1,goldH1=APST.tfData.H1;
+  const btcH24Pct=btcH1?.rsi!=null?(BTC.composite-50)*0.5:0;const goldH24Pct=goldH1?.rsi!=null?(APST.composite-50)*0.5:0;
+  const btcH24El=$b('btc-corr-btc-h24');if(btcH24El){btcH24El.textContent=(BTC.composite>=50?'+':'')+((BTC.composite-50)*0.3).toFixed(1)+'%';btcH24El.style.color=BTC.composite>=50?'#F7931A':'#EF4444';}
+  const goldH24El=$b('btc-corr-gold-h24');if(goldH24El){goldH24El.textContent=(APST.composite>=50?'+':'')+((APST.composite-50)*0.3).toFixed(1)+'%';goldH24El.style.color=APST.composite>=50?'var(--gold)':'#EF4444';}
+  const bar=$b('btc-corr-bar');if(bar){bar.style.width=clamp(BTC.composite,5,95)+'%';bar.style.background=BTC.composite>=60?'#F7931A':BTC.composite<=40?'#EF4444':'rgba(255,255,255,.3)';}
+  const both=BTC.composite>=58&&APST.composite>=58,bothBear=BTC.composite<=42&&APST.composite<=42,diverging=Math.abs(BTC.composite-APST.composite)>25;
+  const badge=$b('btc-corr-badge');if(badge){badge.className='badge '+(both?'b-buy':bothBear?'b-sell':diverging?'b-warn':'b-neu');badge.textContent=both?'BOTH BULL':bothBear?'BOTH BEAR':diverging?'DIVERGING':'MIXED';}
+  const analysis=$b('btc-corr-analysis');if(analysis){if(both)analysis.textContent='BTC & Gold keduanya bullish. Risk-on environment. Konfluensi kuat untuk BUY gold.';else if(bothBear)analysis.textContent='BTC & Gold keduanya bearish. Risk-off. Pertimbangkan SELL atau tunggu.';else if(diverging&&BTC.composite>APST.composite)analysis.textContent='BTC bullish tapi Gold lemah. Mungkin risk-on terbatas. Monitor gold untuk catch-up.';else if(diverging&&APST.composite>BTC.composite)analysis.textContent='Gold outperform BTC. Safe-haven demand. Fokus LONG gold.';else analysis.textContent='Korelasi mixed. Analisa individual chart masing-masing aset.';}
+  const btcBadges=$b('btc-corr-badges');if(btcBadges){btcBadges.innerHTML='<span class="badge '+badgeCls(BTC.signal)+'" style="font-size:7px">BTC: '+BTC.signal+'</span><span class="badge '+badgeCls(APST.signal)+'" style="font-size:7px;background:rgba(255,215,0,.1);border-color:rgba(255,215,0,.3);color:var(--gold)">GOLD: '+APST.signal+'</span>';}
+}
+
+function startBTCSignalDecay(){
+  if(btcDecayInterval)clearInterval(btcDecayInterval);const ts=Date.now();btcDecayInterval=setInterval(()=>{const pct=Math.max(0,100-((Date.now()-ts)/1000/180*100));const fillEl=$b('btc-decay-fill'),labelEl=$b('btc-decay-label');if(fillEl){fillEl.style.width=pct+'%';fillEl.style.background=pct>66?'#F7931A':pct>33?'#F59E0B':'#EF4444';}if(labelEl)labelEl.textContent=pct>66?'FRESH':pct>33?'AGING':'STALE';if(pct<=0)clearInterval(btcDecayInterval);},1000);}
+
+function buildBTCCtx(){
+  const{price,composite,signal,eqs,session}=BTC;const h1=BTC.tfData.H1;const tf=Object.entries(BTC.tfData).map(([k,d])=>d?k+':'+d.signal+'('+d.normalized+')':null).filter(Boolean).join(', ');const lo=BTC.limitOrders;const sn=calcBTCSniperV7();
+  return'BTC/USD V7 APEX:\nPrice:$'+price.toFixed(0)+'\nSignal:'+signal+' Score:'+composite+'/100 EQS:'+eqs+'/10\nSniper:'+(sn?.pct||'--')+'% '+sn?.quality+'\nSession:'+session+' DXY:'+(APST.dxy?.price?fNum(APST.dxy.price,3):'N/A')+'('+fPct(APST.dxy?.changePct||0)+')\nMTF:'+tf+(h1?'\nH1:RSI='+fNum(h1.rsi,1)+' MACD='+(h1.macd?h1.macd.histogram.toFixed(4):'N/A')+' ADX='+(h1.adx?h1.adx.adx.toFixed(1):'N/A'):'')+(h1?.ema200?'\nEMA200=$'+h1.ema200.toFixed(0):'')+'\nOB:'+BTC.orderBlocks.slice(0,2).map(ob=>ob.type+'@$'+ob.mid.toFixed(0)).join(',')+'\nFVG:'+BTC.fvgList.slice(0,2).map(f=>f.type+'@$'+f.mid.toFixed(0)).join(',')+'\nLIQ:'+BTC.liquidityZones.desc.substring(0,60)+'\nBL:'+(lo?.buyLimit?.valid?'$'+lo.buyLimit.zone.toFixed(0):'NO')+'\nSL:'+(lo?.sellLimit?.valid?'$'+lo.sellLimit.zone.toFixed(0):'NO')+'\nCANDLE:'+BTC.candleConfirm.pattern+'\nGOLD:'+APST.signal+' Score:'+APST.composite+'/100\nSentiment BTC:'+btcSentimentCache.score+'/100 '+btcSentimentCache.label;}
+
+async function runBTCAISummary(){const k=getApiKey();if(!k)return;try{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:200,messages:[{role:'user',content:buildBTCCtx()+'\n\nRingkasan 2-3 kalimat Bahasa Indonesia: signal BTC, buy/sell limit terbaik, korelasi gold. Max 60 kata.'}]})});if(!r.ok)return;const d=await r.json(),txt=d.content?.[0]?.text||'';if(txt){const el=$b('btc-ai-summary');if(el){el.style.display='block';el.innerHTML='<span style="font-family:Orbitron,sans-serif;font-size:6.5px;letter-spacing:.12em;color:#F7931A;display:block;margin-bottom:4px">AI SUMMARY BTC V7</span>'+esc(txt);}}}catch(e){}}
+
+async function openChatBTC(){$('chat-panel')?.classList.add('on');const ctx=$('chat-ctx-lbl');if(ctx)ctx.textContent='BTC/USD V7 '+BTC.composite+'/100 '+BTC.session;$('chat-messages').innerHTML='';chatHistory=[];const sn=calcBTCSniperV7(),lo=BTC.limitOrders;appendMsg('ai','BTC/USD V7 APEX siap.<br>Signal: <b style="color:'+sigColor(BTC.signal)+'">'+BTC.signal+'</b> Score: '+BTC.composite+'/100'+(sn?'<br>Sniper: <b style="color:'+(sn.pct>=72?'#10B981':'#F7931A')+'">'+sn.pct+'% '+sn.quality+'</b>':'')+(lo?.buyLimit?.valid?'<br>BUY LIMIT: <span style="color:#10B981">$'+lo.buyLimit.zone.toFixed(0)+'</span>':'')+(lo?.sellLimit?.valid?'<br>SELL LIMIT: <span style="color:#EF4444">$'+lo.sellLimit.zone.toFixed(0)+'</span>':''));setTimeout(()=>$('chat-inp')?.focus(),300);}
+
+async function openTradePlanBTC(){$('tp-panel')?.classList.add('on');const tl=$('tp-lbl');if(tl)tl.textContent='BTC/USD V7 '+BTC.signal;const tc=$('tp-content');if(tc)tc.innerHTML='';const cur=$('tp-cursor');if(cur)cur.style.display='none';const ta=$('tp-actions');if(ta)ta.classList.add('hidden');const k=getApiKey();if(!k){if(tc)tc.innerHTML='<p style="color:rgba(255,255,255,.35);font-size:10px">API Key belum diset.</p>';return;}const tl2=$('tp-loading');if(tl2)tl2.style.display='block';const lo=BTC.limitOrders;const sn=calcBTCSniperV7();const prompt=buildBTCCtx()+'\n\nBuat Trade Plan V7 BTC/USD Bahasa Indonesia:\n1. SNIPER SCORE BTC: '+(sn?.pct||'--')+'% '+sn?.quality+'\n2. SMC: OB, FVG, Liquidity BTC\n3. VWAP + VOL DELTA BTC\n4. STOCH RSI + ICHIMOKU H1 BTC\n5. DIVERGENCE BTC\n6. ELLIOTT WAVE BTC\n7. BUY LIMIT @ '+(lo?.buyLimit?.valid?'$'+lo.buyLimit.zone.toFixed(0)+' SL=$'+lo.buyLimit.sl.toFixed(0):'No valid zone')+'\n8. SELL LIMIT @ '+(lo?.sellLimit?.valid?'$'+lo.sellLimit.zone.toFixed(0)+' SL=$'+lo.sellLimit.sl.toFixed(0):'No valid zone')+'\n9. KORELASI BTC-GOLD: '+APST.signal+' '+APST.composite+'/100\n10. TP: R1.5(40%) R2.5(35%) R4.0(trailing)\n11. CANDLE CONFIRMATION\n12. INVALIDASI\n13. RISK MANAGEMENT\nBahasa Indonesia.';try{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2500,messages:[{role:'user',content:prompt}]})});if(tl2)tl2.style.display='none';if(!r.ok){if(tc)tc.innerHTML='Error '+r.status;return;}const d=await r.json(),txt=d.content?.[0]?.text||'';btcCurrentTP=txt;if(cur)cur.style.display='inline-block';let i=0;const stream=()=>{if(i<txt.length){i+=16;if(tc)tc.innerHTML=esc(txt.slice(0,i)).replace(/\n/g,'<br>');const scr=$('tp-scroll');if(scr)scr.scrollTop=scr.scrollHeight;requestAnimationFrame(stream);}else{if(tc)tc.innerHTML=esc(txt).replace(/\n/g,'<br>');if(cur)cur.style.display='none';const ta2=$('tp-actions');if(ta2){ta2.classList.remove('hidden');ta2.style.display='grid';}}};stream();}catch(e){if(tl2)tl2.style.display='none';if(tc)tc.innerHTML='Error: '+e.message;}}
+
+function logSignalBTC(){const{price,signal,composite,eqs,session}=BTC,sn=calcBTCSniperV7(),id='btc_'+Date.now();btcWinHistory[id]={id,price,signal,composite,eqs,session,sniper:sn?.pct||0,at:Date.now()};lsSet('gs7_btc_win',btcWinHistory);showToast('BTC Logged: '+signal+' @ $'+price.toFixed(0),'bull');}
+
+// BTC timer
+setInterval(()=>{btcTimeLeft=Math.max(0,btcTimeLeft-1);const pct=(cfg.refreshInterval||30)>0?btcTimeLeft/(cfg.refreshInterval||30)*100:0;const tb=$b('btc-timerBar');if(tb){tb.style.width=pct+'%';const lr=pct<20;tb.style.background=lr?'#EF4444':'#F7931A';tb.style.boxShadow=lr?'0 0 8px #EF4444':'0 0 8px rgba(247,147,26,.6)';tb.style.transition=pct>95?'none':'width 1s linear';}if(btcTimeLeft<=0){btcTimeLeft=cfg.refreshInterval||30;if(!BTC.isFetching)fetchAllDataBTC();}},1000);
+
+// Boot BTC
+setTimeout(()=>{btcWinHistory=lsGet('gs7_btc_win')||{};fetchAllDataBTC();},3000);
 </script>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- BITCOIN SENTINEL V7 APEX PANEL                 -->
+<!-- ═══════════════════════════════════════════════ -->
+<div class="text-center mb-3 mt-8 rounded-2xl p-4 border border-[rgba(247,147,26,.15)] bg-[rgba(247,147,26,.015)]">
+  <p class="hdr text-[7px] tracking-[.25em] text-[#F7931A]/35 uppercase mb-1">SMC OB FVG VWAP ICHI EW SENTIMENT CHART SNIPER V7</p>
+  <h1 class="hdr text-[22px] tracking-tight" style="color:#F7931A;text-shadow:0 0 22px rgba(247,147,26,.35)">BITCOIN <span class="text-white text-[13px] opacity-65">SENTINEL V7 APEX</span></h1>
+  <div class="flex justify-center items-center gap-2 text-[7.5px] mt-2 opacity-38 uppercase tracking-[.12em] flex-wrap gap-y-1">
+    <div id="btc-dot" class="w-1.5 h-1.5 rounded-full bg-[#F7931A] animate-pulse flex-shrink-0"></div>
+    <span id="btc-api-st">SYNCING...</span>
+    <span class="opacity-25">|</span>
+    <span class="text-[#F7931A] opacity-75">BTC/USD</span>
+  </div>
+  <div class="mt-2 w-full bg-white/10 rounded-full overflow-hidden"><div id="btc-timerBar" style="width:100%;height:3px;background:#F7931A;box-shadow:0 0 8px rgba(247,147,26,.6);" class="timer-bar"></div></div>
+  <div class="flex justify-center gap-2 mt-3 flex-wrap">
+    <button onclick="manualRefreshBTC()" class="text-[8px] text-[#F7931A] border border-[#F7931A]/28 px-3 py-1.5 rounded-full hdr tracking-wider">SCAN BTC</button>
+    <button onclick="openChatBTC()" class="text-[8px] text-white/35 border border-white/10 px-3 py-1.5 rounded-full hdr tracking-wider">AI CHAT</button>
+    <button onclick="openTradePlanBTC()" class="text-[8px] text-[#F7931A] border border-[#F7931A]/28 px-3 py-1.5 rounded-full hdr tracking-wider">TRADE PLAN</button>
+  </div>
+</div>
+
+<!-- BTC ERROR -->
+<div id="btc-err-panel" style="display:none" class="bg-red-900/10 border border-red-500/20 rounded-2xl p-3 mb-3">
+  <p id="btc-ec" class="ec"></p><p id="btc-ed" class="ed"></p>
+  <button onclick="manualRefreshBTC()" id="btc-retry-btn" class="mt-2 text-[8.5px] text-red-400 border border-red-900/30 px-3 py-1 rounded-full hdr">RETRY</button>
+</div>
+
+<!-- BTC PRICE CARD -->
+<div id="btc-price-card" class="gold-card p-4 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-start mb-3">
+    <div>
+      <p class="hdr text-[7px] tracking-[.2em] mb-1" style="color:rgba(247,147,26,.35)">BTC / USD SPOT</p>
+      <div id="btc-price-val" class="hdr font-black" style="font-size:36px;color:#F7931A;text-shadow:0 0 28px rgba(247,147,26,.42)">-</div>
+      <div class="flex items-center gap-2 mt-1 flex-wrap">
+        <span id="btc-price-change" class="text-[12px] font-bold">-</span>
+        <span id="btc-price-pct" class="text-[10px] text-white/38">-</span>
+        <span id="btc-market-badge" class="badge b-closed">LOADING</span>
+        <span id="btc-volatility-badge" class="badge b-vol-med">VOL:-</span>
+      </div>
+    </div>
+    <div class="text-right">
+      <p class="text-[6.5px] text-white/20 hdr uppercase tracking-widest">24H RANGE</p>
+      <p id="btc-range-val" class="hdr text-[11px] font-black text-white/55">-</p>
+      <p id="btc-atr-val" class="text-[9px] text-white/35 mt-1">ATR: -</p>
+    </div>
+  </div>
+  <div class="grid grid-cols-4 gap-2 mb-2">
+    <div class="stat-box"><p class="text-[6px] text-white/18 hdr mb-0.5">ATR(14)</p><p id="btc-atr-num" class="font-bold text-[9px]" style="color:#F7931A">-</p></div>
+    <div class="stat-box"><p class="text-[6px] text-white/18 hdr mb-0.5">SPREAD</p><p id="btc-spread-val" class="font-bold text-[9px]">-</p></div>
+    <div class="stat-box"><p class="text-[6px] text-white/18 hdr mb-0.5">VOL REG</p><p id="btc-vol-regime" class="font-bold text-[8px]">-</p></div>
+    <div class="stat-box"><p class="text-[6px] text-white/18 hdr mb-0.5">SESSION</p><p id="btc-session-val" class="font-bold text-[8px]">-</p></div>
+  </div>
+  <!-- Vol regime bar -->
+  <div class="gp">
+    <div class="flex justify-between items-center mb-1.5"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest">VOLATILITY REGIME</p><span id="btc-vol-badge" class="badge b-vol-med">-</span></div>
+    <div class="vol-regime-bar mb-1"><div id="btc-vol-needle" class="vol-needle" style="left:30%"></div></div>
+    <div class="grid grid-cols-3 gap-1.5 mt-2">
+      <div class="text-center"><p class="text-[6px] text-white/22 hdr">ATR Ratio</p><p id="btc-atr-ratio" class="font-bold text-[9px]" style="color:#F7931A">-</p></div>
+      <div class="text-center"><p class="text-[6px] text-white/22 hdr">BB Width</p><p id="btc-bb-width" class="font-bold text-[9px] text-[var(--blue)]">-</p></div>
+      <div class="text-center"><p class="text-[6px] text-white/22 hdr">Scalp Mode</p><p id="btc-scalp-mode" class="font-bold text-[8.5px]">-</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- BTC SIGNAL CARD -->
+<div id="btc-signal-card" class="gold-card p-4 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex items-start justify-between mb-3">
+    <div>
+      <p class="hdr text-[7px] tracking-[.2em] text-white/22 uppercase mb-1">COMPOSITE SIGNAL BTC V7</p>
+      <div id="btc-signal-main" class="hdr sig-n font-black tracking-wider leading-none">ANALYZING...</div>
+      <p id="btc-signal-sub" class="text-[8px] text-white/35 mt-0.5">19 engines</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="text-center"><div id="btc-eqs-ring" class="eqs-ring eqs-5">5</div><p class="eqs-label text-center mt-1">EQS</p></div>
+      <div class="text-right"><p class="hdr text-[6.5px] text-white/22 uppercase tracking-widest mb-0.5">SCORE</p><p id="btc-signal-score" class="hdr text-[24px] font-black" style="color:#F7931A">50</p><p class="text-[6.5px] text-white/18">/100</p></div>
+    </div>
+  </div>
+  <div class="mb-2">
+    <div class="flex justify-between text-[6px] text-white/22 hdr uppercase tracking-widest mb-1"><span>SIGNAL CONFIDENCE</span><span id="btc-decay-label" style="color:#F7931A">FRESH</span></div>
+    <div class="decay-bar"><div id="btc-decay-fill" class="decay-fill" style="width:100%;background:#F7931A"></div></div>
+  </div>
+  <div class="mb-3">
+    <div class="conf-bg"><div id="btc-conf-needle" class="conf-needle" style="left:50%"></div></div>
+  </div>
+  <div id="btc-signal-badges" class="flex flex-wrap mb-3"></div>
+  <!-- Candle Confirm -->
+  <div class="gp mb-3">
+    <div class="flex justify-between items-center mb-1.5"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest">CANDLE CONFIRMATION</p><span id="btc-candle-confirm-badge" class="badge b-noconf">PENDING</span></div>
+    <p id="btc-candle-confirm-desc" class="text-[9px] text-white/65 leading-relaxed">-</p>
+    <div class="grid grid-cols-3 gap-1.5 mt-2">
+      <div class="text-center"><p class="text-[6px] text-white/22 hdr">Pattern</p><p id="btc-cc-pattern" class="font-bold text-[8.5px]" style="color:#F7931A">-</p></div>
+      <div class="text-center"><p class="text-[6px] text-white/22 hdr">Close</p><p id="btc-cc-close" class="font-bold text-[8.5px]">-</p></div>
+      <div class="text-center"><p class="text-[6px] text-white/22 hdr">Rejection</p><p id="btc-cc-rejection" class="font-bold text-[8.5px]">-</p></div>
+    </div>
+  </div>
+  <div id="btc-ai-summary" class="gp text-[9.5px] text-white/58 leading-relaxed mb-3" style="display:none"></div>
+  <div class="action-btn-row">
+    <button class="act-btn" onclick="openChatBTC()" style="font-size:8.5px;background:rgba(247,147,26,.08);border-color:rgba(247,147,26,.22);color:#F7931A">AI</button>
+    <button class="act-btn" onclick="openTradePlanBTC()" style="font-size:8.5px;background:rgba(247,147,26,.08);border-color:rgba(247,147,26,.22);color:#F7931A">PLAN</button>
+    <button class="sec-btn" onclick="logSignalBTC()" style="font-size:8px">LOG</button>
+    <button class="sec-btn" onclick="manualRefreshBTC()" style="font-size:8px">SCAN</button>
+  </div>
+</div>
+
+<!-- BTC MINI CHART -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2">
+    <p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">MINI CHART BTC LIVE</p>
+    <span class="badge" style="background:rgba(247,147,26,.1);border-color:rgba(247,147,26,.3);color:#F7931A">H1</span>
+  </div>
+  <canvas id="btc-mini-chart" style="width:100%;border-radius:10px;display:block"></canvas>
+  <div class="flex justify-between text-[6.5px] text-white/20 mt-1.5 hdr uppercase tracking-widest">
+    <span style="color:rgba(6,182,212,0.6)">EMA9</span><span style="color:rgba(249,115,22,0.6)">EMA20</span><span style="color:rgba(247,147,26,0.8)">Price</span><span style="color:rgba(16,185,129,0.6)">BL</span><span style="color:rgba(239,68,68,0.6)">SL</span>
+  </div>
+</div>
+
+<!-- BTC SENTIMENT -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">MARKET SENTIMENT SCORE BTC V7</p><span id="btc-sentiment-badge" class="badge b-neu">NEUTRAL</span></div>
+  <div class="flex items-center gap-3 mb-3">
+    <div class="text-center flex-shrink-0"><p id="btc-sentiment-score" class="hdr font-black text-[28px]" style="color:#F7931A;line-height:1">50</p><p class="text-[6px] text-white/22 hdr uppercase tracking-widest mt-0.5">/100</p></div>
+    <div class="flex-1">
+      <p id="btc-sentiment-label" class="hdr font-black text-[12px] mb-2" style="color:#F7931A">NEUTRAL</p>
+      <div class="conf-bg" style="height:8px;border-radius:99px"><div id="btc-sentiment-needle" class="conf-needle" style="left:50%;top:-5px;height:18px"></div></div>
+    </div>
+  </div>
+  <div class="gp"><p class="hdr text-[6px] text-white/22 uppercase tracking-widest mb-1.5">SENTIMENT FACTORS</p><div id="btc-sentiment-factors"></div></div>
+</div>
+
+<!-- BTC SNIPER -->
+<div id="btc-sniper-card" class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-3"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">SNIPER BTC V7 - 14 FACTOR</p><span id="btc-sniper-quality-badge" class="badge b-neu">SCANNING...</span></div>
+  <div class="flex items-center gap-3 mb-3">
+    <div id="btc-sniper-ring" style="width:64px;height:64px;border-radius:50%;border:3px solid #F7931A;background:rgba(247,147,26,.08);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <div class="text-center"><p id="btc-sniper-score-num" class="hdr font-black text-[20px]" style="color:#F7931A;line-height:1">-</p><p class="text-[5.5px] text-white/25 hdr">SCORE</p></div>
+    </div>
+    <div class="flex-1">
+      <div class="flex justify-between items-center mb-1.5"><span class="hdr text-[6.5px] text-white/22 uppercase tracking-widest">SNIPER ENTRY SCORE</span><span id="btc-sniper-pct-txt" class="hdr text-[11px] font-black" style="color:#F7931A">-%</span></div>
+      <div class="scalp-bar-bg"><div id="btc-sniper-needle" class="scalp-needle" style="left:50%"></div></div>
+      <div class="flex justify-between text-[5.5px] text-white/18 mt-2.5 hdr"><span>AVOID</span><span>WAIT</span><span>GOOD</span><span>SNIPER</span></div>
+    </div>
+  </div>
+  <div id="btc-sniper-factors" class="space-y-1 mb-3"></div>
+  <div class="gp"><p class="hdr text-[6.5px] text-white/22 uppercase tracking-widest mb-1.5">ENTRY DECISION BTC V7</p><p id="btc-sniper-decision" class="text-[9.5px] text-white/75 leading-relaxed">Menunggu data...</p></div>
+</div>
+
+<!-- BTC BUY/SELL LIMIT -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.2)">
+  <div class="flex justify-between items-center mb-3"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.5)">BUY LIMIT + SELL LIMIT BTC V7</p><span id="btc-limit-priority-badge" class="badge b-neu">SCANNING...</span></div>
+  <div class="limit-zone-card lz-buy mb-3">
+    <div class="flex items-center justify-between mb-2"><span class="ot-lbl text-[8px]" style="color:#10B981">BUY LIMIT BTC</span><div class="conf-ring" id="btc-bl-conf-ring" style="border:2px solid #10B981;background:rgba(16,185,129,.1);color:#10B981;font-size:7px">-</div></div>
+    <div class="lz-row"><span class="text-[7px] text-white/35">LIMIT ZONE</span><span class="hdr font-black text-[11px] text-[#10B981]" id="btc-bl-zone">-</span></div>
+    <div class="lz-row"><span class="text-[7px] text-white/35">Basis</span><span class="text-[8px] text-white/55" id="btc-bl-basis">-</span></div>
+    <div class="lz-row"><span class="text-[7px] text-white/35">SL</span><span class="text-[9px] font-bold text-[#EF4444]" id="btc-bl-sl">-</span></div>
+    <div class="lz-row"><span class="text-[7px] text-white/35">TP1/TP2/TP3</span><span class="text-[8px] font-bold text-[#34D399]" id="btc-bl-tp">-</span></div>
+    <p class="text-[7px] text-white/30 mt-2" id="btc-bl-note">-</p>
+  </div>
+  <div class="limit-zone-card lz-sell mb-2">
+    <div class="flex items-center justify-between mb-2"><span class="ot-lbl text-[8px]" style="color:#EF4444">SELL LIMIT BTC</span><div class="conf-ring" id="btc-sl-conf-ring" style="border:2px solid #EF4444;background:rgba(239,68,68,.1);color:#EF4444;font-size:7px">-</div></div>
+    <div class="lz-row"><span class="text-[7px] text-white/35">LIMIT ZONE</span><span class="hdr font-black text-[11px] text-[#EF4444]" id="btc-sl-zone">-</span></div>
+    <div class="lz-row"><span class="text-[7px] text-white/35">Basis</span><span class="text-[8px] text-white/55" id="btc-sl-basis">-</span></div>
+    <div class="lz-row"><span class="text-[7px] text-white/35">SL</span><span class="text-[9px] font-bold text-[#10B981]" id="btc-sl-sl">-</span></div>
+    <div class="lz-row"><span class="text-[7px] text-white/35">TP1/TP2/TP3</span><span class="text-[8px] font-bold text-[#F87171]" id="btc-sl-tp">-</span></div>
+    <p class="text-[7px] text-white/30 mt-2" id="btc-sl-note">-</p>
+  </div>
+</div>
+
+<!-- BTC ORDER TYPE -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">ORDER TYPE BTC V7</p><span id="btc-ot-priority-badge" class="badge b-neu">SCANNING...</span></div>
+  <div class="grid grid-cols-2 gap-2 mb-2">
+    <div class="ot-card ot-buy" id="btc-ot-buy-card">
+      <div class="flex items-center justify-between mb-2"><span class="ot-lbl" style="color:#10B981">BUY MARKET</span><div class="conf-ring" id="btc-ot-buy-ring" style="border:2px solid #10B981;background:rgba(16,185,129,.1);color:#10B981;font-size:7px">-</div></div>
+      <div class="ot-row"><span class="text-[7px] text-white/35">ENTRY</span><span class="ot-price text-[#10B981]" id="btc-ot-buy-entry">-</span></div>
+      <div class="ot-row"><span class="text-[7px] text-white/35">SL</span><span class="ot-price text-[#EF4444]" id="btc-ot-buy-sl">-</span></div>
+      <div class="ot-row"><span class="text-[7px] text-white/35">TP1</span><span class="text-[9px] font-bold text-[#34D399]" id="btc-ot-buy-tp1">-</span></div>
+    </div>
+    <div class="ot-card ot-sell" id="btc-ot-sell-card">
+      <div class="flex items-center justify-between mb-2"><span class="ot-lbl" style="color:#EF4444">SELL MARKET</span><div class="conf-ring" id="btc-ot-sell-ring" style="border:2px solid #EF4444;background:rgba(239,68,68,.1);color:#EF4444;font-size:7px">-</div></div>
+      <div class="ot-row"><span class="text-[7px] text-white/35">ENTRY</span><span class="ot-price text-[#EF4444]" id="btc-ot-sell-entry">-</span></div>
+      <div class="ot-row"><span class="text-[7px] text-white/35">SL</span><span class="ot-price text-[#10B981]" id="btc-ot-sell-sl">-</span></div>
+      <div class="ot-row"><span class="text-[7px] text-white/35">TP1</span><span class="text-[9px] font-bold text-[#F87171]" id="btc-ot-sell-tp1">-</span></div>
+    </div>
+  </div>
+  <p class="text-[7px] text-white/32 leading-relaxed" id="btc-ot-summary">Menunggu data...</p>
+</div>
+
+<!-- BTC OB + FVG -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">ORDER BLOCK + FVG BTC (SMC)</p><span id="btc-ob-badge" class="badge b-neu">SCANNING...</span></div>
+  <div class="gp mb-2"><div class="flex justify-between items-center mb-1"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest">SMC BIAS</p><span id="btc-smc-bias-badge" class="badge b-eq">-</span></div><div class="grid grid-cols-3 gap-1.5"><div class="text-center"><p class="text-[6px] text-white/22 hdr">Zone</p><p id="btc-smc-zone" class="font-bold text-[9px]">-</p></div><div class="text-center"><p class="text-[6px] text-white/22 hdr">EQ Level</p><p id="btc-smc-eq" class="font-bold text-[9px]" style="color:#F7931A">-</p></div><div class="text-center"><p class="text-[6px] text-white/22 hdr">Position</p><p id="btc-smc-pos-pct" class="font-bold text-[8.5px]">-</p></div></div></div>
+  <div class="mb-2"><p class="hdr text-[6px] text-white/20 uppercase tracking-widest mb-1.5">ORDER BLOCKS</p><div id="btc-ob-list"></div></div>
+  <div><p class="hdr text-[6px] text-white/20 uppercase tracking-widest mb-1.5">FAIR VALUE GAPS</p><div id="btc-fvg-list"></div></div>
+</div>
+
+<!-- BTC FIBONACCI -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">FIBONACCI AUTO-DRAW BTC V7</p><span id="btc-fib-badge" class="badge b-neu">CALCULATING...</span></div>
+  <div id="btc-fib-v7-list" class="space-y-0.5 mb-2"></div>
+  <p id="btc-fib-desc" class="text-[7px] text-white/30 leading-relaxed mt-1"></p>
+</div>
+
+<!-- BTC ELLIOTT WAVE -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">ELLIOTT WAVE DETECTOR BTC V7</p><span id="btc-ew-badge" class="badge b-neu">SCANNING...</span></div>
+  <div class="flex items-center gap-3 mb-3">
+    <div class="text-center flex-shrink-0"><p id="btc-ew-current-wave" class="hdr font-black text-[20px]" style="color:#F7931A;line-height:1">?</p><p class="text-[6px] text-white/22 hdr uppercase tracking-widest mt-0.5">WAVE</p></div>
+    <div class="flex-1"><div class="flex items-center gap-2 mb-1"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest">CONFIDENCE</p><p id="btc-ew-confidence" class="hdr font-black text-[11px]" style="color:#F7931A">--%</p></div><p id="btc-ew-label" class="text-[8.5px] text-white/60 leading-relaxed">Scanning pivots...</p></div>
+  </div>
+  <div id="btc-ew-targets"></div>
+</div>
+
+<!-- BTC ORDER FLOW -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">ORDER FLOW HEATMAP BTC V7</p><span id="btc-of-badge" class="badge b-neu">LIVE</span></div>
+  <div id="btc-orderflow-heatmap" class="space-y-0.5"></div>
+</div>
+
+<!-- BTC LIQUIDITY -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">LIQUIDITY SWEEP BTC</p><span id="btc-liq-badge" class="badge b-neu">-</span></div>
+  <div class="grid grid-cols-2 gap-2 mb-2"><div class="gp"><p class="hdr text-[6px] text-white/22 uppercase tracking-widest mb-1">EQUAL HIGHS</p><p id="btc-liq-eqh" class="hdr font-black text-[12px] text-[#F87171]">-</p><p id="btc-liq-eqh-desc" class="text-[7px] text-white/35 mt-0.5">-</p></div><div class="gp"><p class="hdr text-[6px] text-white/22 uppercase tracking-widest mb-1">EQUAL LOWS</p><p id="btc-liq-eql" class="hdr font-black text-[12px] text-[#34D399]">-</p><p id="btc-liq-eql-desc" class="text-[7px] text-white/35 mt-0.5">-</p></div></div>
+  <div id="btc-liq-zones-list"></div>
+  <p id="btc-liq-desc" class="text-[8px] text-white/40 mt-2 leading-relaxed"></p>
+</div>
+
+<!-- BTC VWAP + VOL DELTA -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">VWAP + VOLUME DELTA BTC</p><span id="btc-vwap-badge" class="badge b-neu">-</span></div>
+  <div class="grid grid-cols-2 gap-2 mb-2">
+    <div class="gp"><p class="hdr text-[6px] text-white/22 uppercase tracking-widest mb-1">INTRADAY VWAP</p><p id="btc-vwap-val" class="hdr font-black text-[14px]" style="color:#06B6D4">-</p><p id="btc-vwap-dist" class="text-[7.5px] text-white/35 mt-0.5">-</p><span id="btc-vwap-pos-badge" class="badge b-vwap-bull">-</span></div>
+    <div class="gp"><p class="hdr text-[6px] text-white/22 uppercase tracking-widest mb-1">VOL DELTA</p><div class="vd-bar-wrap mb-1"><div class="vd-buy-bar" id="btc-vd-buy-bar" style="width:50%"></div><div class="vd-sell-bar" id="btc-vd-sell-bar" style="width:50%"></div><div class="vd-mid"></div></div><div class="flex justify-between text-[6.5px] mt-1"><span class="text-[#10B981]">BUY <span id="btc-vd-buy-pct" class="font-bold">50%</span></span><span class="text-[#EF4444]">SELL <span id="btc-vd-sell-pct" class="font-bold">50%</span></span></div><span id="btc-vd-badge" class="badge b-neu mt-1">-</span></div>
+  </div>
+</div>
+
+<!-- BTC ICHIMOKU -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">ICHIMOKU CLOUD BTC (H1)</p><span id="btc-ichi-badge" class="badge b-neu">SCANNING...</span></div>
+  <div class="grid grid-cols-2 gap-2 mb-2"><div class="gp"><p class="hdr text-[6px] text-white/22 uppercase tracking-widest mb-1">TENKAN / KIJUN</p><div class="flex justify-between text-[8px] mb-1"><span>T: <span id="btc-ichi-tenkan" class="font-bold text-[#06B6D4]">-</span></span><span>K: <span id="btc-ichi-kijun" class="font-bold text-[#F97316]">-</span></span></div><span id="btc-ichi-tk-badge" class="badge b-neu">-</span></div><div class="gp"><p class="hdr text-[6px] text-white/22 uppercase tracking-widest mb-1">KUMO CLOUD</p><p id="btc-ichi-kumo-label" class="font-bold text-[9px]">-</p><span id="btc-ichi-kumo-badge" class="badge b-neu mt-1">-</span></div></div>
+  <div class="gp"><p id="btc-ichi-overall" class="text-[9px] text-white/65 leading-relaxed">-</p><div class="flex flex-wrap mt-1" id="btc-ichi-badges"></div></div>
+</div>
+
+<!-- BTC DIVERGENCE -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">DIVERGENCE SCANNER BTC V7</p><span id="btc-div-main-badge" class="badge b-off">SCANNING...</span></div>
+  <div id="btc-div-list" class="space-y-1.5 mb-2"></div>
+  <p id="btc-div-summary" class="text-[8px] text-white/45 leading-relaxed"></p>
+</div>
+
+<!-- BTC MTF GRID -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <p class="hdr text-[7px] tracking-[.2em] uppercase mb-2.5" style="color:rgba(247,147,26,.35)">MULTI-TIMEFRAME BTC V7</p>
+  <div class="grid grid-cols-5 gap-1.5 mb-2">
+    <div class="tf-cell tf-n" id="btc-tf-M5"><p class="hdr text-[7px] text-white/25 mb-1">M5</p><p id="btc-tf-M5-sig" class="hdr text-[7.5px] font-black">-</p><p id="btc-tf-M5-rsi" class="text-[8.5px] font-bold mt-0.5" style="color:#F7931A">-</p></div>
+    <div class="tf-cell tf-n" id="btc-tf-M15"><p class="hdr text-[7px] text-white/25 mb-1">M15</p><p id="btc-tf-M15-sig" class="hdr text-[7.5px] font-black">-</p><p id="btc-tf-M15-rsi" class="text-[8.5px] font-bold mt-0.5" style="color:#F7931A">-</p></div>
+    <div class="tf-cell tf-n" id="btc-tf-H1"><p class="hdr text-[7px] text-white/25 mb-1">H1</p><p id="btc-tf-H1-sig" class="hdr text-[7.5px] font-black">-</p><p id="btc-tf-H1-rsi" class="text-[8.5px] font-bold mt-0.5" style="color:#F7931A">-</p></div>
+    <div class="tf-cell tf-n" id="btc-tf-H4"><p class="hdr text-[7px] text-white/25 mb-1">H4</p><p id="btc-tf-H4-sig" class="hdr text-[7.5px] font-black">-</p><p id="btc-tf-H4-rsi" class="text-[8.5px] font-bold mt-0.5" style="color:#F7931A">-</p></div>
+    <div class="tf-cell tf-n" id="btc-tf-D1"><p class="hdr text-[7px] text-white/25 mb-1">D1</p><p id="btc-tf-D1-sig" class="hdr text-[7.5px] font-black">-</p><p id="btc-tf-D1-rsi" class="text-[8.5px] font-bold mt-0.5" style="color:#F7931A">-</p></div>
+  </div>
+  <div id="btc-tf-conf-txt" class="text-center text-[7.5px] text-white/25 mt-1"></div>
+</div>
+
+<!-- BTC INDICATORS -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <p class="hdr text-[7px] tracking-[.2em] uppercase mb-3" style="color:rgba(247,147,26,.35)">TECHNICAL INDICATORS BTC (H1)</p>
+  <!-- RSI -->
+  <div class="gp mb-2"><div class="flex justify-between items-center mb-2"><div class="flex items-center gap-2"><span class="hdr text-[7px] text-white/25 uppercase tracking-widest">RSI (14)</span><span id="btc-rsi-badge" class="badge b-neu">-</span></div><span id="btc-rsi-val" class="hdr text-[15px] font-black" style="color:#F7931A">-</span></div><div class="rsi-zone rounded-full" style="height:6px"></div><div style="position:relative;height:6px;margin-top:-6px"><div id="btc-rsi-needle" style="position:absolute;top:-3px;width:2.5px;height:12px;background:#fff;border-radius:2px;transform:translateX(-50%);transition:left .7s;left:50%"></div></div></div>
+  <!-- MACD -->
+  <div class="gp mb-2"><div class="flex justify-between items-center mb-1.5"><div class="flex items-center gap-2"><span class="hdr text-[7px] text-white/25 uppercase tracking-widest">MACD</span><span id="btc-macd-badge" class="badge b-neu">-</span></div><span id="btc-macd-hist-val" class="text-[10px] font-bold">-</span></div><div class="macd-bars-wrap" id="btc-macd-bars" style="height:32px"></div></div>
+  <!-- BB + Stoch -->
+  <div class="grid grid-cols-2 gap-2 mb-2">
+    <div class="gp"><div class="flex justify-between items-center mb-1.5"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest">BB</p><span id="btc-bb-badge" class="badge b-neu">-</span></div><div class="flex justify-between text-[8px] mb-1"><span id="btc-bb-pct" class="font-bold" style="color:#F7931A">-%</span><span id="btc-bb-width-val" class="text-white/35">W:-</span></div><div class="bar-wrap" style="height:5px"><div id="btc-bb-bar" class="bar-fill" style="width:50%;background:#F7931A"></div></div></div>
+    <div class="gp"><div class="flex justify-between items-center mb-1.5"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest">Stoch RSI</p><span id="btc-srsi-badge" class="badge b-neu">-</span></div><div class="flex justify-between text-[8px] mb-1"><span>K:<span id="btc-srsi-k" class="font-bold" style="color:#06B6D4">-</span></span><span>D:<span id="btc-srsi-d" class="font-bold text-white/35">-</span></span></div><div class="bar-wrap" style="height:5px"><div id="btc-srsi-k-bar" class="bar-fill" style="width:50%;background:#06B6D4"></div></div></div>
+  </div>
+  <!-- ADX -->
+  <div class="gp"><div class="flex justify-between items-center mb-1.5"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest">ADX</p><span id="btc-adx-badge" class="badge b-neu">-</span></div><div class="flex items-center gap-2"><p id="btc-adx-val" class="hdr text-[16px] font-black" style="color:#F7931A">-</p><div class="flex-1"><div class="adx-bar-wrap"><div id="btc-adx-bar" class="adx-bar" style="width:0%;background:#F7931A"></div></div><div class="flex justify-between text-[6px] text-white/18 hdr mt-1"><span>+DI:<span id="btc-adx-pdi">-</span></span><span>-DI:<span id="btc-adx-mdi">-</span></span></div></div></div><p id="btc-adx-desc" class="text-[8px] text-white/40 mt-1 leading-relaxed"></p></div>
+</div>
+
+<!-- BTC EMA -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">EMA CLOUD BTC (H1)</p><span id="btc-ema-trend-badge" class="badge b-neu">SIDEWAYS</span></div>
+  <div class="space-y-1.5">
+    <div class="ps-row" style="padding:5px 8px"><span class="ps-lbl">EMA 9</span><span id="btc-ema9" class="ps-val" style="color:#06B6D4">-</span><span id="btc-ema9-pos" class="text-[7.5px] text-white/30">-</span></div>
+    <div class="ps-row" style="padding:5px 8px"><span class="ps-lbl">EMA 20</span><span id="btc-ema20" class="ps-val" style="color:#F59E0B">-</span><span id="btc-ema20-pos" class="text-[7.5px] text-white/30">-</span></div>
+    <div class="ps-row" style="padding:5px 8px"><span class="ps-lbl">EMA 50</span><span id="btc-ema50" class="ps-val" style="color:#F97316">-</span><span id="btc-ema50-pos" class="text-[7.5px] text-white/30">-</span></div>
+    <div class="ps-row" style="padding:5px 8px;background:rgba(247,147,26,.04);border-color:rgba(247,147,26,.18)"><span class="ps-lbl font-bold" style="color:#F7931A">EMA 200</span><span id="btc-ema200" class="ps-val" style="color:#F7931A">-</span><span id="btc-ema200-pos" class="text-[7.5px] text-white/30">-</span></div>
+  </div>
+  <p id="btc-ema-desc" class="text-[8.5px] text-white/42 mt-2 leading-relaxed"></p>
+</div>
+
+<!-- BTC S/R LEVELS -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">S/R + PIVOT + FIB BTC</p></div>
+  <div id="btc-sr-list"></div>
+  <div class="mt-2 pt-2 border-t border-white/[.04]"><p class="hdr text-[6.5px] text-white/20 uppercase tracking-widest mb-1.5">PSYCHOLOGICAL LEVELS</p><div id="btc-round-lvls" class="flex flex-wrap gap-1"></div></div>
+</div>
+
+<!-- BTC PATTERNS -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.1)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.35)">CANDLESTICK PATTERNS BTC</p><span id="btc-pat-count" class="badge b-off">0 PATTERNS</span></div>
+  <div id="btc-patterns-list"></div>
+</div>
+
+<!-- BTC-GOLD CORRELATION PANEL -->
+<div class="gold-card p-3 mb-3" style="border-color:rgba(247,147,26,.2);background:linear-gradient(160deg,rgba(247,147,26,.04) 0%,#000 100%)">
+  <div class="flex justify-between items-center mb-2.5"><p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.5)">BTC ↔ GOLD CORRELATION</p><span id="btc-corr-badge" class="badge b-neu">LIVE</span></div>
+  <div class="grid grid-cols-2 gap-3 mb-3">
+    <div class="gp text-center"><p class="hdr text-[6px] text-white/22 uppercase tracking-widest mb-1">BTC Signal</p><p id="btc-corr-btc-signal" class="hdr font-black text-[13px]" style="color:#F7931A">-</p><p id="btc-corr-btc-score" class="text-[8px] text-white/35 mt-0.5">Score: -</p></div>
+    <div class="gp text-center"><p class="hdr text-[6px] text-white/22 uppercase tracking-widest mb-1">GOLD Signal</p><p id="btc-corr-gold-signal" class="hdr font-black text-[13px]" style="color:var(--gold)">-</p><p id="btc-corr-gold-score" class="text-[8px] text-white/35 mt-0.5">Score: -</p></div>
+  </div>
+  <div class="gp mb-2"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest mb-1.5">24H PERFORMANCE</p><div class="flex justify-between text-[8.5px] mb-1.5"><span>BTC: <span id="btc-corr-btc-h24" class="font-bold">-</span></span><span>Gold: <span id="btc-corr-gold-h24" class="font-bold" style="color:var(--gold)">-</span></span></div><div class="bar-wrap" style="height:6px"><div id="btc-corr-bar" class="bar-fill" style="width:50%;background:#F7931A"></div></div></div>
+  <div class="gp"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest mb-1.5">ANALISA KORELASI</p><p id="btc-corr-analysis" class="text-[8.5px] text-white/60 leading-relaxed">Memuat...</p><div id="btc-corr-badges" class="flex flex-wrap mt-2"></div></div>
+</div>
 </body>
 </html>
