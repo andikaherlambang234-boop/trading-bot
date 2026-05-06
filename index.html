@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#000000">
-<title>GOLD SENTINEL V7 APEX</title>
+<meta name="description" content="Gold &amp; BTC Sentinel V8 ZENITH — Advanced Trading Dashboard">
+<meta name="theme-color" content="#0a0800">
+<title>GOLD &amp; BTC SENTINEL V8 ZENITH</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
@@ -250,7 +251,35 @@ select.si option{background:#0a0800;}
 .of-ask{background:linear-gradient(90deg,rgba(239,68,68,.4),rgba(239,68,68,.8));border-radius:0 99px 99px 0;transition:width .5s;}
 .of-type{font-family:'Orbitron',sans-serif;font-size:6.5px;font-weight:700;text-align:right;}
 @media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
-#stale-badge{display:none;position:fixed;top:6px;right:6px;z-index:9999;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.35);color:#EF4444;font-size:6.5px;padding:2px 6px;border-radius:4px;font-family:Orbitron,sans-serif;letter-spacing:.08em;}</style>
+#stale-badge{display:none;position:fixed;top:6px;right:6px;z-index:9999;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.35);color:#EF4444;font-size:6.5px;padding:2px 6px;border-radius:4px;font-family:Orbitron,sans-serif;letter-spacing:.08em;}
+/* ═══ V8 ZENITH STYLES ═══ */
+.zenith-card{background:linear-gradient(135deg,rgba(255,215,0,.04) 0%,rgba(0,0,0,0) 60%);border:1px solid rgba(255,215,0,.18);border-radius:18px;padding:14px;}
+.zenith-card-btc{background:linear-gradient(135deg,rgba(247,147,26,.04) 0%,rgba(0,0,0,0) 60%);border:1px solid rgba(247,147,26,.18);border-radius:18px;padding:14px;}
+.regime-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;font-family:Orbitron,sans-serif;font-size:7px;font-weight:700;letter-spacing:.1em;}
+.regime-trending{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.35);color:#10B981;}
+.regime-ranging{background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:#F59E0B;}
+.regime-breakout{background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.35);color:#8B5CF6;}
+.regime-reversal{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.35);color:#EF4444;}
+.regime-volatile{background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.35);color:#F97316;}
+.ha-bull{background:rgba(16,185,129,.12);border-left:3px solid #10B981;padding:4px 8px;border-radius:0 6px 6px 0;margin-bottom:3px;}
+.ha-bear{background:rgba(239,68,68,.1);border-left:3px solid #EF4444;padding:4px 8px;border-radius:0 6px 6px 0;margin-bottom:3px;}
+.ha-doji{background:rgba(245,158,11,.1);border-left:3px solid #F59E0B;padding:4px 8px;border-radius:0 6px 6px 0;margin-bottom:3px;}
+.conf-seg{height:100%;transition:width .5s ease;}
+.conf-track{display:flex;height:8px;border-radius:4px;overflow:hidden;background:rgba(255,255,255,.05);gap:1px;}
+.alert-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.journal-entry{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px;margin-bottom:6px;}
+.fg-needle{position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:2px;height:32px;background:rgba(255,255,255,.8);border-radius:2px;transform-origin:bottom center;transition:transform .6s cubic-bezier(.34,1.56,.64,1);}
+.fg-arc{width:80px;height:40px;position:relative;overflow:hidden;margin:0 auto 4px;}
+.fg-arc-bg{width:80px;height:80px;border-radius:50%;background:conic-gradient(#EF4444 0%,#F97316 20%,#F59E0B 40%,#10B981 60%,#10B981 100%);position:absolute;top:0;left:0;clip-path:inset(50% 0 0 0);}
+.hm-cell{display:flex;align-items:center;justify-content:center;width:28px;height:18px;border-radius:3px;font-size:6.5px;font-weight:700;font-family:Orbitron,monospace;}
+.zenith-glow-gold{box-shadow:0 0 30px rgba(255,215,0,.12),0 0 60px rgba(255,215,0,.06);}
+.zenith-glow-btc{box-shadow:0 0 30px rgba(247,147,26,.12),0 0 60px rgba(247,147,26,.06);}
+@keyframes zenith-pulse{0%,100%{opacity:.6}50%{opacity:1}}
+.zenith-live-dot{animation:zenith-pulse 1.8s ease-in-out infinite;}
+.btc-dom-bar{height:6px;background:linear-gradient(90deg,#F7931A,#FFB84D);border-radius:3px;transition:width .5s;}
+.perf-bar-pos{background:linear-gradient(90deg,rgba(16,185,129,.3),rgba(16,185,129,.7));height:4px;border-radius:2px;}
+.perf-bar-neg{background:linear-gradient(90deg,rgba(239,68,68,.7),rgba(239,68,68,.3));height:4px;border-radius:2px;}
+</style>
 
 <script>
 if('serviceWorker' in navigator){
@@ -394,11 +423,11 @@ if('serviceWorker' in navigator){
 <!-- HEADER -->
 <div class="text-center mb-3 pt-2 rounded-2xl p-4 border border-[rgba(255,215,0,.07)] bg-[rgba(255,215,0,.006)]">
   <p class="hdr text-[7px] tracking-[.25em] text-[var(--gold)]/35 uppercase mb-1">SMC OB FVG VWAP ICHI EW SENTIMENT CHART BACKTEST V7 APEX</p>
-  <h1 class="hdr text-[22px] tracking-tight" style="color:var(--gold);text-shadow:0 0 22px rgba(255,215,0,.35)">GOLD <span class="text-white text-[13px] opacity-65">SENTINEL V7 APEX</span></h1>
+  <h1 class="hdr text-[22px] tracking-tight" style="color:var(--gold);text-shadow:0 0 22px rgba(255,215,0,.35)">GOLD <span class="text-white text-[13px] opacity-65">SENTINEL <span style="color:#FFD700">V8 ZENITH</span></span></h1>
   <div class="flex justify-center items-center gap-2 text-[7.5px] mt-2 opacity-38 uppercase tracking-[.12em] flex-wrap gap-y-1">
     <div id="dot" class="w-1.5 h-1.5 rounded-full bg-[var(--gold)] animate-pulse flex-shrink-0"></div>
     <span id="clock">00:00:00</span><span class="opacity-25">|</span>
-    <span id="api-st">SYNCING...</span><span class="opacity-25">|</span>
+    <span id="api-st">V8 ZENITH BOOT...</span><span class="opacity-25">|</span>
     <span class="text-[var(--gold)] opacity-75">XAU/USD</span>
     <button id="wr-disp" onclick="openPanel('win-panel',renderWin)" class="wr-badge hidden">HIST</button>
   </div>
@@ -455,7 +484,7 @@ if('serviceWorker' in navigator){
     <div id="signal-main" class="hdr sig-n font-black tracking-wider leading-none">ANALYZING...</div>
     <p id="signal-sub" class="text-[8px] text-white/35 mt-0.5">19 engines</p></div>
     <div class="flex items-center gap-3">
-      <div class="text-center"><div id="eqs-ring" class="eqs-ring eqs-5">5</div><p class="eqs-label text-center mt-1">EQS</p></div>
+      <div class="text-center"><span class="badge" style="background:rgba(255,215,0,.12);border-color:rgba(255,215,0,.3);color:var(--gold);font-size:6px;margin-right:4px">V8 ZENITH</span><div id="eqs-ring" class="eqs-ring eqs-5">5</div><p class="eqs-label text-center mt-1">EQS</p></div>
       <div class="text-right"><p class="hdr text-[6.5px] text-white/22 uppercase tracking-widest mb-0.5">SCORE</p><p id="signal-score" class="hdr text-[24px] font-black" style="color:var(--gold)">50</p><p class="text-[6.5px] text-white/18">/100</p></div>
     </div>
   </div>
@@ -483,7 +512,7 @@ if('serviceWorker' in navigator){
     <button class="act-btn" onclick="openChat()" style="font-size:8.5px">AI</button>
     <button class="act-btn" onclick="openTradePlan()" style="font-size:8.5px">PLAN</button>
     <button class="sec-btn" onclick="openTools()" style="font-size:8.5px">TOOLS</button>
-    <button class="sec-btn" onclick="logSignal()" style="font-size:8px">LOG</button>
+    <button class="sec-btn" onclick="addJournalEntry('BUY',APST.price,'Quick entry')" style="font-size:8px;color:#10B981">▲</button><button class="sec-btn" onclick="addJournalEntry('SELL',APST.price,'Quick entry')" style="font-size:8px;color:#EF4444">▼</button><button class="sec-btn" onclick="logSignal()" style="font-size:8px">LOG</button>
   </div>
 </div>
 <!-- MINI CHART V7 -->
@@ -846,7 +875,7 @@ function showLoadingState(){['market-badge','ttm-badge','sniper-quality-badge','
 function scheduleRetry(secs){if(_autoRetryTimer)clearTimeout(_autoRetryTimer);const _bo=Math.min(120,secs*Math.pow(1.5,Math.max(0,(APST.retryCount||0)-1)));_autoRetryTimer=setTimeout(()=>{if(!APST.isFetching)fetchAllData();},_bo*1000);}},secs*1000);}
 async function fetchAllData(){if(APST.isFetching)return;APST.isFetching=true;setScanPulse(true);setApiSt('FETCHING...');hideErr();try{let h1c=null;for(const attempt of[()=>fetchYahooRaw('GC=F','1h','1mo'),()=>fetchYahooRaw('GC=F','60m','1mo'),()=>fetchYahooRaw('GC=F','1h','5d'),()=>fetchYahooRaw('GC=F','1d','3mo')]){h1c=await attempt();if(h1c&&h1c.length>=15)break;h1c=null;}if(!h1c||h1c.length<15)throw new Error('Data XAU/USD gagal. Tap SCAN untuk retry.');const _p=h1c.map(c=>c.c);if(Math.max(..._p)-Math.min(..._p)<0.1)throw new Error('Data XAU tidak valid. Retry...');rawCandlesH1=h1c;const[d5m,d15m,d1d]=await Promise.all([fetchYahooRaw('GC=F','5m','2d').catch(()=>null),fetchYahooRaw('GC=F','15m','5d').catch(()=>null),fetchYahooRaw('GC=F','1d','1y').catch(()=>null)]);const lat=h1c[h1c.length-1];APST.price=lat.c;APST.dayHigh=Math.max(...(d5m||h1c.slice(-24)).map(c=>c.h).filter(v=>!isNaN(v)));APST.dayLow=Math.min(...(d5m||h1c.slice(-24)).map(c=>c.l).filter(v=>!isNaN(v)));APST.prevClose=(d1d&&d1d.length>=2?d1d[d1d.length-2]:null)?.c||lat.o;const H1H=h1c.map(c=>c.h),H1L=h1c.map(c=>c.l),H1C=h1c.map(c=>c.c);APST.volatilityRegime=calcVolatilityRegime(H1C,H1H,H1L);APST.tfData.H1=processCandles(h1c,APST.volatilityRegime);APST.tfData.M5=d5m&&d5m.length>=20?processCandles(d5m,APST.volatilityRegime):APST.tfData.H1?{...APST.tfData.H1}:null;APST.tfData.M15=d15m&&d15m.length>=20?processCandles(d15m,APST.volatilityRegime):APST.tfData.H1?{...APST.tfData.H1}:null;APST.tfData.H4=processCandles(resampleH4(h1c),APST.volatilityRegime);APST.tfData.D1=d1d&&d1d.length>=20?processCandles(d1d,APST.volatilityRegime):null;const W={M5:1,M15:2,H1:4,H4:3,D1:2};let ws=0,wv=0;Object.entries(W).forEach(([k,w])=>{const d=APST.tfData[k];if(d){wv+=d.normalized*w;ws+=w;}});const comp=ws>0?clamp(Math.round(wv/ws),0,100):50;APST.composite=comp;APST.signal=comp>=70?'STRONG BUY':comp>=58?'BUY':comp<=30?'STRONG SELL':comp<=42?'SELL':'NEUTRAL';APST.eqs=APST.tfData.H1?.eqs||clamp(Math.round(comp/10),1,10);if(d1d&&d1d.length>=2){const p=d1d[d1d.length-2];APST.pivots=calcPivots(p.h,p.l,p.c);APST.fibLevels=calcFib(p.h,p.l);APST.cpr=calcCPR(p.h,p.l,p.c);}else{APST.pivots=calcPivots(APST.dayHigh,APST.dayLow,APST.price);APST.fibLevels=calcFib(APST.dayHigh,APST.dayLow);APST.cpr=calcCPR(APST.dayHigh,APST.dayLow,APST.price);}APST.orderBlocks=calcOrderBlocks(h1c.map(c=>c.o),H1H,H1L,H1C,APST.price);APST.fvgList=calcFVG(H1H,H1L,H1C,APST.price);APST.liquidityZones=calcLiquiditySweep(H1H,H1L,H1C,APST.price);APST.vwap=calcVWAP(h1c,APST.price);APST.volumeDelta=APST.tfData.H1?.volDelta||{buyPct:50,sellPct:50,climax:false,absorption:false,imbalance:false,pressure:'BALANCED'};APST.smartMoneyFlow=APST.tfData.H1?.smartMF||{instPct:50,retailPct:50,direction:'NEUTRAL'};APST.stochRSI=APST.tfData.H1?.stochRSI||{k:50,d:50};APST.cmf=APST.tfData.H1?.cmf||0;APST.mfi=APST.tfData.H1?.mfi||50;const ms=APST.tfData.H1?.marketStructure;APST.smcBias=ms?calcSMCBias(ms.lastSwingHigh,ms.lastSwingLow,APST.price):{zone:'EQUILIBRIUM',eq:APST.price,posPct:50};APST.candleConfirm=calcCandleConfirm(h1c.map(c=>c.o),H1H,H1L,H1C,APST.signal);APST.session=getSession();APST.limitOrders=calcLimitOrders();if(!APST.dxy?.price)APST.dxy={price:104.5,change:0.05,changePct:0.05};if(!APST.newsEvents)APST.newsEvents=[];renderAll();renderAllV7();setApiSt('LIVE V7');notifyChange();checkAlerts();checkLimitAlerts();startSignalDecay();checkSoundAlert();APST.retryCount=0;currentRefresh=cfg.refreshInterval||30;timeLeft=currentRefresh;const ss=$('scan-stats');if(ss){ss.classList.remove('hidden');ss.style.display='flex';}safeSet('st-sig',APST.signal);safeSet('st-score',APST.composite);safeSet('st-eqs',APST.eqs);safeSet('st-regime',APST.volatilityRegime.label);const sn2=calcSniperV7();if(sn2)safeSet('st-sniper',sn2.pct);if(getApiKey())runAISummary();setTimeout(async()=>{try{const dxyC=await fetchYahooRaw('DX-Y.NYB','1d','5d');if(dxyC&&dxyC.length>=2){const dc=dxyC[dxyC.length-1],dcp=dxyC[dxyC.length-2],ch=dc.c-dcp.c;APST.dxy={price:dc.c,change:ch,changePct:dcp.c>0?ch/dcp.c*100:0};renderDXY();}}catch(e){}},2000);setTimeout(async()=>{try{const assets={SPX:'%5EGSPC',OIL:'CL=F',US10Y:'%5ETNX',Silver:'SI=F',Bitcoin:'BTC-USD'};const results={};for(const[name,sym]of Object.entries(assets)){const d=await fetchYahooRaw(sym,'1d','5d').catch(()=>null);if(d&&d.length>=2){const cur=d[d.length-1].c,prev=d[d.length-2].c;results[name]={price:cur,changePct:prev>0?(cur-prev)/prev*100:0};}}APST.multiAssets=results;APST.correlations={dxy:APST.dxy?.changePct||null,spx:results.SPX?.changePct||null,oil:results.OIL?.changePct||null,us10y:results.US10Y?.changePct||null};renderCorrelationPanel();renderMultiAssetPanel();}catch(e){}},4000);setTimeout(async()=>{try{const n=await fetchEconomicCalendar();if(n&&n.length){APST.newsEvents=n;renderNewsPanel();checkNewsAlert();}}catch(e){}},7000);}catch(e){setApiSt('ERROR');APST.retryCount=(APST.retryCount||0)+1;showErr('FETCH ERROR',e.message||String(e));currentRefresh=Math.min(60,15+APST.retryCount*5);timeLeft=currentRefresh;if(APST.price>0)renderAll();if(APST.retryCount<=4)scheduleRetry(currentRefresh);}APST.isFetching=false;setScanPulse(false);}
 function renderAll(){try{renderPrice();renderVolatilityRegime();renderSignal();renderSniperCard();renderLimitOrderCard();renderOBFVGPanel();renderLiquidityPanel();renderVWAPPanel();renderSmartMoneyPanel();renderStochRSIPanel();renderMultiAssetPanel();renderIchimokuPanel();renderDivV6Panel();renderCorrelationPanel();renderNewsPanel();renderTTMPanel();renderSTPSARPanel();renderMSOBVROC();renderOrderPanel();renderTFGrid();renderIndicators();renderADX();renderPatterns();renderEMA();renderSR();renderDXY();renderSession();renderCandleConfirm();}catch(e){console.warn("renderAll err",e);}}
-function renderAllV7(){renderSentimentPanel();drawMiniChart();renderFibV7Panel();renderElliottWavePanel();renderOrderFlowPanel();renderPositionTracker();}
+function renderAllV7(){renderSentimentPanel();drawMiniChart();renderFibV7Panel();renderElliottWavePanel();renderOrderFlowPanel();renderPositionTracker();renderZenith();}
 function startSignalDecay(){if(decayInterval)clearInterval(decayInterval);signalTimestamp=Date.now();decayInterval=setInterval(()=>{const pct=Math.max(0,100-((Date.now()-signalTimestamp)/1000/180*100));const fillEl=$('decay-fill'),labelEl=$('decay-label'),descEl=$('decay-desc');if(fillEl){fillEl.style.width=pct+'%';fillEl.style.background=pct>66?'#10B981':pct>33?'#F59E0B':'#EF4444';}if(labelEl)labelEl.textContent=pct>66?'FRESH':pct>33?'AGING':'STALE';if(descEl)descEl.text
 function calcSniperV7(){const h1=APST.tfData.H1;if(!h1)return null;const isBull=APST.composite>=50;let tot=0,max=0;const factors=[];const add=(name,pts,mx,status,cls)=>{factors.push({name,pts,max:mx,status,cls});tot+=pts;max+=mx;};const tfs=Object.values(APST.tfData).filter(Boolean),bulls=tfs.filter(d=>d.normalized>55).length,bears=tfs.filter(d=>d.normalized<45).length,aligned=isBull?bulls:bears,pts1=aligned>=4?18:aligned>=3?12:aligned>=2?6:0;add('MTF Align',pts1,18,aligned+'/5',pts1>=12?'b-buy':'b-warn');const st=h1.supertrend;let pts2=0;if(st){if(isBull&&st.bullish)pts2=st.justBullCross?15:10;else if(!isBull&&!st.bullish)pts2=st.justBearCross?15:10;}add('Supertrend',pts2,15,st?(st.bullish?'BULL':'BEAR'):'--',pts2>=10?'b-st-bull':'b-st-bear');const sq=h1.squeeze;let pts3=0;if(sq){if(!sq.sqzOn&&isBull===sq.bullishMomentum&&sq.risingMomentum)pts3=14;else if(!sq.sqzOn&&isBull===sq.bullishMomentum)pts3=9;else if(sq.sqzOn)pts3=4;}add('TTM Sqz',pts3,14,sq?(sq.sqzOn?'COILING':sq.bullishMomentum?'BULL':'BEAR'):'--',pts3>=9?'b-sqz-bull':'b-sqz');const ms=h1.marketStructure;let pts4=0;if(ms){if(ms.msb&&isBull===ms.msbBull)pts4=12;else if(ms.trend==='bullish'&&isBull)pts4=8;else if(ms.trend==='bearish'&&!isBull)pts4=8;else pts4=2;}add('Mkt Struct',pts4,12,ms?ms.trend.toUpperCase()+(ms.msb?' MSB!':''):'--',pts4>=8?'b-buy':'b-warn');const obs=APST.orderBlocks||[];let pts5=0,obStatus='NO OB';const atr=h1.atr||20;const nBull=obs.find(ob=>ob.type==='bull'&&!ob.mitigated&&Math.abs(ob.dist||0)<atr*1.5),nBear=obs.find(ob=>ob.type==='bear'&&!ob.mitigated&&Math.abs(ob.dist||0)<atr*1.5);if(isBull&&nBull){pts5=8;obStatus='BULL OB';}else if(!isBull&&nBear){pts5=8;obStatus='BEAR OB';}else if(nBull||nBear){pts5=3;obStatus='OB NEAR';}add('Order Block',pts5,12,obStatus,pts5>=8?'b-ob-bull':'b-warn');const vwap=h1.vwap;let pts6=0;if(vwap){if(isBull&&vwap.bullishBias)pts6=10;else if(!isBull&&!vwap.bullishBias)pts6=10;else pts6=2;}add('VWAP',pts6,10,vwap?(vwap.bullishBias?'ABOVE':'BELOW'):'--',pts6>=7?'b-vwap-bull':'b-warn');const vd=APST.volumeDelta;let pts7=0;if(vd){if(isBull&&vd.buyPct>60)pts7=10;else if(!isBull&&vd.sellPct>60)pts7=10;else pts7=2;}add('Vol Delta',pts7,10,vd?vd.pressure:'--',pts7>=7?'b-buy':'b-warn');const ichi=h1.ichimoku;let pts8=0;if(ichi){if(isBull&&ichi.bullish)pts8=10;else if(!isBull&&ichi.bearish)pts8=10;else pts8=2;}add('Ichimoku',pts8,10,ichi?(ichi.bullish?'FULL BULL':ichi.bearish?'FULL BEAR':'MIXED'):'--',pts8>=7?'b-ichi-bull':'b-warn');const hdivs=h1.hiddenDivs||[];let pts9=0;const bd=hdivs.some(d=>d.type==='regular_bull'||d.type==='hidden_bull'),brd=hdivs.some(d=>d.type==='regular_bear'||d.type==='hidden_bear');if(isBull&&bd)pts9=8;else if(!isBull&&brd)pts9=8;else if(!bd&&!brd)pts9=4;else pts9=1;add('Divergence',pts9,8,hdivs.length>0?hdivs[0].type.replace(/_/g,' ').toUpperCase():'NONE',pts9>=6?'b-div-bull':'b-warn');const cc=APST.candleConfirm;let pts10=0;if(cc.confirmed)pts10=8;else if(cc.pattern==='WEAK BULL'||cc.pattern==='WEAK BEAR')pts10=3;add('Candle',pts10,8,cc.pattern||'--',pts10>=6?'b-confirm':'b-noconf');const sess=APST.session,pts11=sess?.includes('Overlap')?8:sess==='London'||sess==='New York'?6:2;add('Session',pts11,8,sess||'--',pts11>=6?'b-ovlp':'b-asia');const vr=APST.volatilityRegime;let pts12=0;if(vr){if(vr.label==='NORMAL')pts12=7;else if(vr.label==='LOW')pts12=5;else if(vr.label==='HIGH')pts12=4;else pts12=2;}add('Vol Regime',pts12,7,vr?vr.label:'--',pts12>=5?'b-vol-med':'b-vol-high');const srsi=h1.stochRSI;let pts13=0;if(srsi){if(isBull&&srsi.crossUp&&srsi.oversold)pts13=7;else if(isBull&&srsi.crossUp)pts13=5;else if(!isBull&&srsi.crossDn&&srsi.overbought)pts13=7;else if(!isBull&&srsi.crossDn)pts13=5;else if(isBull&&srsi.oversold)pts13=4;else if(!isBull&&srsi.overbought)pts13=4;else pts13=2;}add('StochRSI',pts13,7,srsi?(srsi.crossUp?'CROSS UP':srsi.crossDn?'CROSS DN':srsi.oversold?'OVERSOLD':'OVERBOUGHT'):'--',pts13>=5?'b-buy':'b-warn');const smf=APST.smartMoneyFlow;let pts14=0;if(smf){if(isBull&&smf.instPct>60)pts14=6;else if(!isBull&&smf.instPct<40)pts14=6;else pts14=2;}add('Smart$',pts14,6,smf?smf.direction:'--',pts14>=5?'b-lime':'b-warn');const pct=max>0?clamp(Math.round((tot/max)*100),0,100):0,quality=pct>=88?'SNIPER':pct>=75?'HIGH CONF':pct>=62?'MODERATE':pct>=48?'LOW CONF':'AVOID',qualCls=pct>=88?'b-sniper':pct>=75?'b-buy':pct>=62?'b-neu':'b-warn';return{pct,quality,qualCls,factors,isBull,shouldEnter:pct>=72};}
 Content=pct>66?'Signal valid':pct>33?'Signal aging - konfirmasi ulang':'Signal stale - scan ulang!';if(pct<=0)clearInterval(decayInterval);},1000);}
@@ -861,7 +890,7 @@ function appendMsg(role,html){const d=document.createElement('div');d.className=
 function showTyping(){const d=document.createElement('div');d.id='chat-typing';d.className='chat-typing';d.innerHTML='<span></span><span></span><span></span>';const cm=$('chat-messages');if(cm){cm.appendChild(d);cm.scrollTop=cm.scrollHeight;}}
 function hideTyping(){$('chat-typing')?.remove();}
 /* ═══ BUG FIX #4: sendChat uses chatMode ═══ */
-async function sendChat(){const inp=$('chat-inp'),msg=inp?.value.trim();if(!msg||_chatSending)return;const k=getApiKey();if(!k){appendMsg('ai','API Key belum diset. Buka CFG.');return;}_chatSending=true;inp.value='';appendMsg('user',msg);hideTyping();showTyping();const sys=chatMode==='btc'?'Kamu adalah BITCOIN SENTINEL AI V7 APEX, analis BTC/USD. Jawab ringkas Bahasa Indonesia max 3 paragraf.\n\nDATA:\n'+buildBTCCtx():'Kamu adalah GOLD SENTINEL AI V7 APEX, analis XAU/USD. Jawab ringkas Bahasa Indonesia max 3 paragraf.\n\nDATA:\n'+buildCtxV7();chatHistory.push({role:'user',content:msg});try{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,system:sys,messages:chatHistory.slice(-12)})});hideTyping();if(!r.ok){appendMsg('ai','Error: '+r.status);_chatSending=false;return;}const d=await r.json(),txt=d.content?.[0]?.text||'';chatHistory.push({role:'assistant',content:txt});appendMsg('ai',txt.replace(/\n/g,'<br>'));}catch(e){hideTyping();appendMsg('ai','Error: '+e.message);}_chatSending=false;}
+async function sendChat(){const inp=$('chat-inp'),msg=inp?.value.trim();if(!msg||_chatSending)return;const k=getApiKey();if(!k){appendMsg('ai','API Key belum diset. Buka CFG.');return;}_chatSending=true;inp.value='';appendMsg('user',msg);hideTyping();showTyping();const sys=chatMode==='btc'?'Kamu adalah BITCOIN SENTINEL AI V8 ZENITH, analis BTC/USD. Jawab ringkas Bahasa Indonesia max 3 paragraf.\n\nDATA:\n'+buildBTCCtx():'Kamu adalah GOLD SENTINEL AI V8 ZENITH, analis XAU/USD. Jawab ringkas Bahasa Indonesia max 3 paragraf.\n\nDATA:\n'+buildCtxV7();chatHistory.push({role:'user',content:msg});try{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':k,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,system:sys,messages:chatHistory.slice(-12)})});hideTyping();if(!r.ok){appendMsg('ai','Error: '+r.status);_chatSending=false;return;}const d=await r.json(),txt=d.content?.[0]?.text||'';chatHistory.push({role:'assistant',content:txt});appendMsg('ai',txt.replace(/\n/g,'<br>'));}catch(e){hideTyping();appendMsg('ai','Error: '+e.message);}_chatSending=false;}
 /* ═══ BUG FIX #5: openTradePlan sets activePlanMode='gold' ═══ */
 function openTradePlan(){activePlanMode='gold';$('tp-panel')?.classList.add('on');const tl=$('tp-lbl');if(tl)tl.textContent='XAU/USD V7 '+APST.signal;const tc=$('tp-content');if(tc)tc.innerHTML='';const cur=$('tp-cursor');if(cur)cur.style.display='none';const ta=$('tp-actions');if(ta)ta.classList.add('hidden');const k=getApiKey();if(!k){if(tc)tc.innerHTML='<p style="color:rgba(255,255,255,.35);font-size:10px">API Key belum diset.</p>';return;}generateTradePlanV7();}
 function closeTradePlan(){$('tp-panel')?.classList.remove('on');}
@@ -903,6 +932,275 @@ window.addEventListener('scroll',()=>{const b=$('scroll-top');if(b)b.classList.t
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&timeLeft<5&&!APST.isFetching){timeLeft=1;fetchAllData();}});
 document.addEventListener('click',()=>{if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume().catch(()=>{});},{passive:true});
 (function init(){activePositions=lsGet('gs7_positions')||[];updateWrDisplay();currentRefresh=cfg.refreshInterval||30;timeLeft=currentRefresh;renderPositionTracker();fetchAllData();window.addEventListener('resize',()=>{if(rawCandlesH1.length)try{drawMiniChart();}catch(e){}},{passive:true});})();
+
+/* ════════════════════════════════════════════════
+   V8 ZENITH ENGINE — Market Regime, HA, Conf, FG
+   ════════════════════════════════════════════════ */
+
+/* ─── HEIKIN-ASHI ENGINE ─── */
+function calcHeikinAshi(candles){
+  if(!candles||candles.length<5)return null;
+  const ha=[];
+  let prevHAO=candles[0].o,prevHAC=(candles[0].o+candles[0].h+candles[0].l+candles[0].c)/4;
+  for(const c of candles){
+    const haC=(c.o+c.h+c.l+c.c)/4,haO=(prevHAO+prevHAC)/2,haH=Math.max(c.h,haO,haC),haL=Math.min(c.l,haO,haC);
+    ha.push({o:haO,h:haH,l:haL,c:haC,bull:haC>=haO,noLowerWick:haL===Math.min(haO,haC),noUpperWick:haH===Math.max(haO,haC)});
+    prevHAO=haO;prevHAC=haC;
+  }
+  const last=ha[ha.length-1],prev=ha.length>=2?ha[ha.length-2]:last;
+  const streak=ha.slice(-5).filter(c=>c.bull===last.bull).length;
+  let pattern='--',strength=50;
+  if(last.bull&&last.noLowerWick){pattern='STRONG BULL';strength=90;}
+  else if(last.bull&&!last.noLowerWick){pattern='BULL';strength=70;}
+  else if(!last.bull&&last.noUpperWick){pattern='STRONG BEAR';strength=10;}
+  else if(!last.bull){pattern='BEAR';strength=30;}
+  if(last.bull!==prev.bull)pattern='REVERSAL '+pattern;
+  return{candles:ha,last,pattern,strength,streak,bull:last.bull};
+}
+
+/* ─── MARKET REGIME DETECTOR ─── */
+function calcMarketRegime(candles,atr,adx){
+  if(!candles||candles.length<20)return{label:'UNKNOWN',cls:'regime-ranging',score:50,desc:'--'};
+  const C=candles.map(c=>c.c),H=candles.map(c=>c.h),L=candles.map(c=>c.l);
+  const n=C.length;
+  const ema20=calcEMA(C,20)||C[n-1],ema50=calcEMA(C,50)||C[n-1];
+  const adxVal=adx?.adx||20,pdi=adx?.pdi||25,mdi=adx?.mdi||25;
+  const atrPct=atr&&C[n-1]>0?atr/C[n-1]*100:0.5;
+  const recentH=Math.max(...H.slice(-10)),recentL=Math.min(...L.slice(-10));
+  const rangeRatio=C[n-1]>0?(recentH-recentL)/C[n-1]*100:1;
+  const priceAboveEMA=C[n-1]>ema20&&ema20>ema50,priceBelowEMA=C[n-1]<ema20&&ema20<ema50;
+  const trending=adxVal>28,strongTrend=adxVal>42,ranging=adxVal<18;
+  const highVol=atrPct>0.8,lowVol=atrPct<0.25;
+  const recentRange5=Math.max(...H.slice(-5))-Math.min(...L.slice(-5));
+  const prevRange5=Math.max(...H.slice(-10,-5))-Math.min(...L.slice(-10,-5));
+  const expanding=prevRange5>0&&recentRange5/prevRange5>1.4;
+  let label,cls,score,desc;
+  if(strongTrend&&(priceAboveEMA||priceBelowEMA)){
+    label='TRENDING KUAT';cls='regime-trending';score=priceAboveEMA?82:18;
+    desc='ADX '+adxVal.toFixed(0)+' — trend dominan. Ikuti arah, jangan counter.';}
+  else if(trending&&expanding){
+    label='BREAKOUT';cls='regime-breakout';score=pdi>mdi?75:25;
+    desc='Range expanding. Momentum kuat — breakout aktif.';}
+  else if(ranging&&lowVol){
+    label='RANGING KETAT';cls='regime-ranging';score=50;
+    desc='ADX rendah, vol rendah. Range trade, tunggu breakout.';}
+  else if(ranging&&!lowVol){
+    label='RANGING';cls='regime-ranging';score=50;
+    desc='Sideway. Jual resistance, beli support.';}
+  else if(highVol&&!trending){
+    label='VOLATILE';cls='regime-volatile';score=50;
+    desc='Volatilitas tinggi tanpa arah. Reduce size!';}
+  else if(!priceAboveEMA&&!priceBelowEMA&&trending){
+    label='REVERSAL ZONA';cls='regime-reversal';score=pdi>mdi?60:40;
+    desc='Trend mungkin berbalik. Tunggu konfirmasi.';}
+  else{
+    label='NORMAL';cls='regime-ranging';score=55;
+    desc='Kondisi normal. Ikuti signal utama.';}
+  return{label,cls,score,desc,adxVal,atrPct,trending,ranging,highVol};
+}
+
+/* ─── FEAR & GREED COMPOSITE ─── */
+function calcFearGreed(){
+  const factors=[];let total=0,wt=0;
+  const add=(name,val,w)=>{factors.push({name,val:Math.round(val)});total+=val*w;wt+=w;};
+  const h1=APST.tfData?.H1,vr=APST.volatilityRegime;
+  if(h1?.rsi!=null)add('RSI',h1.rsi,2);
+  if(APST.composite)add('Signal',APST.composite,3);
+  if(h1?.stochRSI)add('StochRSI',h1.stochRSI.k,2);
+  if(APST.volumeDelta)add('Vol Delta',APST.volumeDelta.buyPct,2);
+  if(APST.smartMoneyFlow)add('Smart$',APST.smartMoneyFlow.instPct,2);
+  if(APST.dxy?.changePct!=null)add('DXY Inv',clamp(50-APST.dxy.changePct*15,0,100),2);
+  if(vr){const vScore=vr.label==='EXTREME'?15:vr.label==='HIGH'?30:vr.label==='LOW'?60:50;add('Volatility',vScore,1);}
+  const score=wt>0?clamp(Math.round(total/wt),0,100):50;
+  const label=score>=80?'EXTREME GREED':score>=65?'GREED':score>=45?'NEUTRAL':score>=30?'FEAR':'EXTREME FEAR';
+  const color=score>=65?'#10B981':score>=45?'#F59E0B':'#EF4444';
+  return{score,label,color,factors};
+}
+
+/* ─── BTC DOMINANCE SIMULATED ─── */
+function calcBTCDominance(){
+  const btcScore=BTC.composite||50,altPressure=100-btcScore;
+  const dom=clamp(42+((btcScore-50)*0.3),38,58);
+  return{dom:Math.round(dom*10)/10,rising:btcScore>55,desc:dom>50?'BTC dominan. Altcoin tertekan.':'Alt season potential.'};
+}
+
+/* ─── CONFLUENCE METER ─── */
+function calcConfluence(){
+  const h1=APST.tfData?.H1,isBull=APST.composite>=50;
+  const segs=[];
+  const addSeg=(name,ok,weight)=>segs.push({name,ok:isBull?ok:!ok,weight,color:isBull?'#10B981':'#EF4444'});
+  addSeg('MTF',Object.values(APST.tfData).filter(Boolean).filter(d=>isBull?d.normalized>55:d.normalized<45).length>=3,3);
+  addSeg('ST',h1?.supertrend?(isBull?h1.supertrend.bullish:!h1.supertrend.bullish):false,2);
+  addSeg('ICHI',h1?.ichimoku?(isBull?h1.ichimoku.bullish:h1.ichimoku.bearish):false,2);
+  addSeg('VWAP',h1?.vwap?(isBull?h1.vwap.bullishBias:!h1.vwap.bullishBias):false,2);
+  addSeg('Sqz',h1?.squeeze?(!h1.squeeze.sqzOn&&(isBull?h1.squeeze.bullishMomentum:!h1.squeeze.bullishMomentum)):false,2);
+  addSeg('OB',(APST.orderBlocks||[]).some(ob=>ob.type===(isBull?'bull':'bear')&&!ob.mitigated),1);
+  addSeg('FVG',(APST.fvgList||[]).some(f=>f.type===(isBull?'bull':'bear')&&!f.filled),1);
+  addSeg('Session',['London','New York','London-NY Overlap','Asia-London Overlap'].includes(APST.session),1);
+  const aligned=segs.filter(s=>s.ok),totalW=segs.reduce((a,s)=>a+s.weight,0),hitW=aligned.reduce((a,s)=>a+s.weight,0);
+  const pct=clamp(Math.round(hitW/totalW*100),0,100);
+  return{pct,segs,aligned:aligned.length,total:segs.length,isBull};
+}
+
+/* ─── SMART ALERTS ─── */
+let zenithAlerts=lsGet('zn_alerts')||[];
+function addZenithAlert(type,price,label){
+  const id='za_'+Date.now();
+  zenithAlerts.push({id,type,price:parseFloat(price),label,createdAt:Date.now(),fired:false});
+  lsSet('zn_alerts',zenithAlerts);
+  renderZenithAlerts();
+  showToast('Alert set: '+label+' @ $'+price,'bull');
+}
+function removeZenithAlert(id){
+  zenithAlerts=zenithAlerts.filter(a=>a.id!==id);
+  lsSet('zn_alerts',zenithAlerts);
+  renderZenithAlerts();
+}
+function checkZenithAlerts(){
+  const price=APST.price;
+  if(!price)return;
+  zenithAlerts.forEach(a=>{
+    if(a.fired)return;
+    const hit=(a.type==='above'&&price>=a.price)||(a.type==='below'&&price<=a.price);
+    if(hit){a.fired=true;showToast('🔔 '+a.label+' HIT @ $'+price.toFixed(2),'bull');
+      if(cfg.tgToken&&cfg.tgChat)sendTG('🔔 ZENITH ALERT
+'+a.label+'
+$'+price.toFixed(2));
+      playAlert('sniper');}
+  });
+  zenithAlerts=zenithAlerts.filter(a=>!a.fired);
+  lsSet('zn_alerts',zenithAlerts);
+}
+
+/* ─── QUICK JOURNAL ─── */
+let zenithJournal=lsGet('zn_journal')||[];
+function addJournalEntry(type,price,note){
+  zenithJournal.unshift({id:'jn_'+Date.now(),type,price,note,at:Date.now(),signal:APST.signal,score:APST.composite});
+  if(zenithJournal.length>50)zenithJournal=zenithJournal.slice(0,50);
+  lsSet('zn_journal',zenithJournal);
+  renderJournal();
+  showToast('Journal: '+type+' logged','bull');
+}
+function clearJournal(){if(!confirm('Hapus semua journal?'))return;zenithJournal=[];lsSet('zn_journal',[]);renderJournal();}
+
+/* ─── AUTO-TUNE REFRESH ─── */
+function autoTuneRefresh(){
+  const vr=APST.volatilityRegime;
+  if(!vr||!cfg.refreshInterval)return;
+  const base=cfg.refreshInterval||30;
+  const tuned=vr.label==='EXTREME'?Math.max(15,base*0.5):vr.label==='HIGH'?Math.max(20,base*0.7):vr.label==='LOW'||vr.label==='ULTRA LOW'?Math.min(60,base*1.5):base;
+  if(Math.abs(tuned-currentRefresh)>5){currentRefresh=Math.round(tuned);safeSet('auto-tune-val',currentRefresh+'s');}}
+
+/* ─── ZENITH RENDER FUNCTIONS ─── */
+function renderMarketRegime(){
+  const h1=APST.tfData?.H1;
+  if(!h1)return;
+  const regime=calcMarketRegime(rawCandlesH1,h1.atr,h1.adx);
+  const el=$('regime-badge');
+  if(el){el.className='regime-pill '+regime.cls;el.textContent=regime.label;}
+  const desc=$('regime-desc');if(desc)desc.textContent=regime.desc;
+  const adxEl=$('regime-adx');if(adxEl)adxEl.textContent=regime.adxVal?regime.adxVal.toFixed(1):'--';
+  const volEl=$('regime-vol');if(volEl)volEl.textContent=regime.atrPct?(regime.atrPct*100).toFixed(1)+'bps':'--';
+}
+function renderHeikinAshi(){
+  const ha=calcHeikinAshi(rawCandlesH1);
+  if(!ha)return;
+  const badge=$('ha-badge');
+  if(badge){
+    badge.className='badge '+(ha.bull?'b-buy':'b-sell');
+    badge.textContent=ha.pattern;
+  }
+  const streakEl=$('ha-streak');if(streakEl)streakEl.textContent=ha.streak+'x';
+  const strEl=$('ha-strength');if(strEl){strEl.textContent=ha.strength+'%';strEl.style.color=ha.bull?'#10B981':'#EF4444';}
+  const list=$('ha-list');
+  if(list&&ha.candles.length>=5){
+    const last5=ha.candles.slice(-5).reverse();
+    list.innerHTML=last5.map((c,i)=>`<div class="${c.bull?'ha-bull':'ha-bear'}"><span class="text-[6.5px] font-bold" style="color:${c.bull?'#10B981':'#EF4444'}">${c.bull?(c.noLowerWick?'STRONG ▲':'▲'):(c.noUpperWick?'STRONG ▼':'▼')}</span><span class="text-[6.5px] text-white/40 ml-2">${i===0?'NOW':i+'c ago'}</span></div>`).join('');
+  }
+}
+function renderFearGreed(){
+  const fg=calcFearGreed();
+  const scoreEl=$('fg-score'),labelEl=$('fg-label'),needleEl=$('fg-needle');
+  if(scoreEl){scoreEl.textContent=fg.score;scoreEl.style.color=fg.color;}
+  if(labelEl){labelEl.textContent=fg.label;labelEl.style.color=fg.color;}
+  if(needleEl){const deg=-90+(fg.score/100)*180;needleEl.style.transform=`translateX(-50%) rotate(${deg}deg)`;}
+  const badge=$('fg-badge');
+  if(badge){badge.className='badge '+(fg.score>=65?'b-buy':fg.score<=35?'b-sell':'b-neu');badge.textContent=fg.label;}
+  const factors=$('fg-factors');
+  if(factors)factors.innerHTML=fg.factors.map(f=>`<div class="flex justify-between py-0.5"><span class="text-[7.5px] text-white/45">${f.name}</span><div class="bar-wrap w-16" style="height:4px"><div class="bar-fill" style="width:${f.val}%;background:${f.val>=50?'#10B981':'#EF4444'}"></div></div><span class="text-[7px] font-bold" style="color:${f.val>=50?'#10B981':'#EF4444'}">${f.val}</span></div>`).join('');
+}
+function renderConfluence(){
+  const conf=calcConfluence();
+  const gauge=$('conf-gauge'),pct=$('conf-pct'),segsEl=$('conf-segs');
+  if(gauge){gauge.style.width=conf.pct+'%';gauge.style.background=conf.pct>=72?'#10B981':conf.pct>=50?'#F59E0B':'#EF4444';}
+  if(pct){pct.textContent=conf.pct+'%';pct.style.color=conf.pct>=72?'#10B981':conf.pct>=50?'#F59E0B':'#EF4444';}
+  if(segsEl)segsEl.innerHTML=conf.segs.map(s=>`<div class="hm-cell" style="background:${s.ok?'rgba(16,185,129,.2)':'rgba(255,255,255,.03)'};color:${s.ok?'#10B981':'rgba(255,255,255,.2)'};" title="${s.name}">${s.name.substring(0,3)}</div>`).join('');
+  const badge=$('conf-badge');
+  if(badge){badge.className='badge '+(conf.pct>=72?'b-buy':conf.pct>=50?'b-neu':'b-sell');badge.textContent=conf.pct>=85?'MAX CONF':conf.pct>=72?'KONFLUENSI':conf.pct>=50?'PARTIAL':'LOW';}
+}
+function renderBTCDominance(){
+  const dom=calcBTCDominance();
+  const bar=$('btc-dom-bar'),val=$('btc-dom-val'),desc=$('btc-dom-desc');
+  if(bar)bar.style.width=dom.dom+'%';
+  if(val){val.textContent=dom.dom+'%';val.style.color=dom.rising?'#F7931A':'#06B6D4';}
+  if(desc)desc.textContent=dom.desc;
+}
+function renderZenithAlerts(){
+  const el=$('alert-list');
+  if(!el)return;
+  if(!zenithAlerts.length){el.innerHTML='<p class="text-[7.5px] text-white/25 py-1">Belum ada alert.</p>';return;}
+  el.innerHTML=zenithAlerts.map(a=>`<div class="alert-row"><span class="badge ${a.type==='above'?'b-buy':'b-sell'}" style="font-size:6px">${a.type.toUpperCase()}</span><span class="text-[8px] text-white/65">${a.label}</span><span class="hdr text-[9px] font-black" style="color:${a.type==='above'?'#10B981':'#EF4444'}">$${a.price.toFixed(2)}</span><button onclick="removeZenithAlert('${a.id}')" class="text-[8px] text-white/25 hover:text-red-400">✕</button></div>`).join('');
+}
+function renderJournal(){
+  const el=$('journal-list');
+  if(!el)return;
+  if(!zenithJournal.length){el.innerHTML='<p class="text-[7.5px] text-white/25 py-1">Belum ada entry.</p>';return;}
+  el.innerHTML=zenithJournal.slice(0,10).map(e=>`<div class="journal-entry"><div class="flex justify-between items-center mb-1"><span class="badge ${e.type==='BUY'?'b-buy':e.type==='SELL'?'b-sell':'b-neu'}" style="font-size:6.5px">${e.type}</span><span class="text-[6.5px] text-white/25">${new Date(e.at).toLocaleString('id-ID')}</span></div><p class="text-[8.5px] text-white/70">@ $${(e.price||0).toFixed(2)} — ${e.signal} ${e.score}/100</p>${e.note?`<p class="text-[8px] text-white/45 mt-0.5 italic">${esc(e.note)}</p>`:''}</div>`).join('');
+}
+
+/* ─── RSI HEATMAP ACROSS TFs ─── */
+function renderRSIHeatmap(){
+  const el=$('rsi-heatmap');
+  if(!el)return;
+  const tfs=['M5','M15','H1','H4','D1'];
+  el.innerHTML=tfs.map(tf=>{
+    const d=APST.tfData[tf];
+    const rsi=d?.rsi;
+    if(rsi==null)return`<div class="hm-cell" style="background:rgba(255,255,255,.04);color:rgba(255,255,255,.2)"><span style="font-size:6px">${tf}</span></div>`;
+    const bg=rsi>70?'rgba(239,68,68,.25)':rsi>60?'rgba(245,158,11,.2)':rsi<30?'rgba(16,185,129,.25)':rsi<40?'rgba(16,185,129,.15)':'rgba(255,255,255,.07)';
+    const col=rsi>70?'#EF4444':rsi>60?'#F59E0B':rsi<30?'#10B981':rsi<40?'#34D399':'rgba(255,255,255,.6)';
+    return`<div class="hm-cell flex-col" style="background:${bg};color:${col};width:38px;height:28px"><span style="font-size:5.5px;opacity:.6">${tf}</span><span style="font-size:8px;font-weight:700">${rsi.toFixed(0)}</span></div>`;
+  }).join('');
+}
+
+/* ─── PERFORMANCE SPARKLINE ─── */
+function renderPerfBar(){
+  const assets=APST.multiAssets||{};
+  const el=$('perf-bars');
+  if(!el)return;
+  const defs=[{k:'Gold',v:(APST.composite-50)*0.3,isSelf:true},{k:'Bitcoin',v:assets.Bitcoin?.changePct||0},{k:'SPX',v:assets.SPX?.changePct||0},{k:'Oil',v:assets.OIL?.changePct||0},{k:'Silver',v:assets.Silver?.changePct||0}];
+  el.innerHTML=defs.map(d=>{
+    const pos=d.v>=0;const w=clamp(Math.abs(d.v)*20,2,100);
+    return`<div class="flex items-center gap-2 mb-1"><span class="text-[7px] text-white/40 w-12">${d.k}</span><div class="flex-1 flex items-center ${pos?'':'flex-row-reverse'}"><div class="${pos?'perf-bar-pos':'perf-bar-neg'}" style="width:${w}%"></div></div><span class="text-[7.5px] font-bold" style="color:${pos?'#10B981':'#EF4444'}">${pos?'+':''}${d.v.toFixed(2)}%</span></div>`;
+  }).join('');
+}
+
+/* ─── ZENITH RENDER ALL ─── */
+function renderZenith(){
+  try{
+    renderMarketRegime();
+    renderHeikinAshi();
+    renderFearGreed();
+    renderConfluence();
+    renderBTCDominance();
+    renderZenithAlerts();
+    renderJournal();
+    renderRSIHeatmap();
+    renderPerfBar();
+    checkZenithAlerts();
+    autoTuneRefresh();
+  }catch(e){console.warn('renderZenith err',e);}
+}
 
 const BTC={price:0,prevClose:0,dayHigh:0,dayLow:0,composite:50,signal:'NEUTRAL',eqs:5,session:'Asia',tfData:{M5:null,M15:null,H1:null,H4:null,D1:null},pivots:{},fibLevels:{},cpr:{},orderBlocks:[],fvgList:[],liquidityZones:{eqH:null,eqL:null,sweeps:[],desc:'',nearEqH:false,nearEqL:false},vwap:{},volumeDelta:{buyPct:50,sellPct:50,climax:false,absorption:false,imbalance:false,pressure:'BALANCED'},volatilityRegime:{label:'NORMAL',ratio:1,pct:50,scalp:'NORMAL',mult:1.2,atrNow:1000,bbWidth:1},smcBias:{zone:'EQUILIBRIUM',eq:0,posPct:50},candleConfirm:{confirmed:false,pattern:'--',desc:'--',closePos:'--',rejection:'CLEAN'},newsEvents:[],smartMoneyFlow:{instPct:50,retailPct:50,direction:'NEUTRAL'},stochRSI:{k:50,d:50},cmf:0,mfi:50,limitOrders:{buyLimit:null,sellLimit:null},isFetching:false};
 
@@ -1054,12 +1352,137 @@ setInterval(()=>{btcTimeLeft=Math.max(0,btcTimeLeft-1);const pct=(cfg.refreshInt
 setTimeout(()=>{btcWinHistory=lsGet('gs7_btc_win')||{};fetchAllDataBTC();},3000);
 </script>
 
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- V8 ZENITH PANELS — GOLD                        -->
+<!-- ═══════════════════════════════════════════════ -->
+
+<!-- MARKET REGIME CARD -->
+<div class="zenith-card zenith-glow-gold mb-3">
+  <div class="flex justify-between items-center mb-2">
+    <p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(255,215,0,.5)">MARKET REGIME DETECTOR V8</p>
+    <span id="regime-badge" class="regime-pill regime-ranging">LOADING</span>
+  </div>
+  <p id="regime-desc" class="text-[9px] text-white/60 leading-relaxed mb-2">Mendeteksi regime pasar...</p>
+  <div class="grid grid-cols-2 gap-2">
+    <div class="gp text-center"><p class="text-[6px] text-white/22 hdr">ADX</p><p id="regime-adx" class="font-bold text-[12px]" style="color:var(--gold)">--</p></div>
+    <div class="gp text-center"><p class="text-[6px] text-white/22 hdr">ATR BPS</p><p id="regime-vol" class="font-bold text-[12px]" style="color:#06B6D4">--</p></div>
+  </div>
+</div>
+
+<!-- CONFLUENCE METER CARD -->
+<div class="zenith-card zenith-glow-gold mb-3">
+  <div class="flex justify-between items-center mb-2.5">
+    <p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(255,215,0,.5)">CONFLUENCE METER V8</p>
+    <span id="conf-badge" class="badge b-neu">SCANNING</span>
+  </div>
+  <div class="flex items-center gap-3 mb-3">
+    <p id="conf-pct" class="hdr font-black text-[28px]" style="color:var(--gold);line-height:1">--</p>
+    <div class="flex-1">
+      <div class="conf-track mb-1">
+        <div id="conf-gauge" class="conf-seg" style="width:50%;background:var(--gold)"></div>
+      </div>
+      <p class="text-[7px] text-white/30">Faktor yang selaras dengan arah signal</p>
+    </div>
+  </div>
+  <div id="conf-segs" class="flex flex-wrap gap-1"></div>
+</div>
+
+<!-- HEIKIN-ASHI CARD -->
+<div class="zenith-card mb-3">
+  <div class="flex justify-between items-center mb-2">
+    <p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(255,215,0,.5)">HEIKIN-ASHI ENGINE V8</p>
+    <span id="ha-badge" class="badge b-neu">--</span>
+  </div>
+  <div class="grid grid-cols-3 gap-2 mb-2">
+    <div class="gp text-center"><p class="text-[6px] text-white/22 hdr">Strength</p><p id="ha-strength" class="font-bold text-[12px]">--%</p></div>
+    <div class="gp text-center"><p class="text-[6px] text-white/22 hdr">Streak</p><p id="ha-streak" class="font-bold text-[12px]" style="color:var(--gold)">--</p></div>
+    <div class="gp text-center"><p class="text-[6px] text-white/22 hdr">Mode</p><p class="font-bold text-[9px] text-white/55">ZENITH</p></div>
+  </div>
+  <div id="ha-list" class="space-y-0.5"></div>
+</div>
+
+<!-- FEAR & GREED CARD -->
+<div class="zenith-card mb-3">
+  <div class="flex justify-between items-center mb-2">
+    <p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(255,215,0,.5)">FEAR &amp; GREED INDEX V8</p>
+    <span id="fg-badge" class="badge b-neu">--</span>
+  </div>
+  <div class="flex items-center gap-4 mb-3">
+    <div class="flex flex-col items-center">
+      <div class="fg-arc"><div class="fg-arc-bg"></div><div id="fg-needle" class="fg-needle" style="transform:translateX(-50%) rotate(-90deg)"></div></div>
+      <p id="fg-score" class="hdr font-black text-[22px]" style="color:var(--gold);line-height:1">50</p>
+    </div>
+    <div class="flex-1">
+      <p id="fg-label" class="hdr font-black text-[12px] mb-2" style="color:var(--gold)">NEUTRAL</p>
+      <div id="fg-factors" class="space-y-0.5"></div>
+    </div>
+  </div>
+</div>
+
+<!-- RSI HEATMAP CARD -->
+<div class="zenith-card mb-3">
+  <div class="flex justify-between items-center mb-2">
+    <p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(255,215,0,.5)">RSI HEATMAP ALL TF V8</p>
+    <span class="badge b-gold-lvl">MTF</span>
+  </div>
+  <div id="rsi-heatmap" class="flex gap-2 justify-center py-1"></div>
+  <p class="text-[7px] text-white/25 text-center mt-2">Merah=OB · Hijau=OS · Putih=Netral</p>
+</div>
+
+<!-- PERFORMANCE BARS CARD -->
+<div class="zenith-card mb-3">
+  <div class="flex justify-between items-center mb-2">
+    <p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(255,215,0,.5)">PERFORMANCE COMPARE V8</p>
+  </div>
+  <div id="perf-bars"></div>
+</div>
+
+<!-- SMART ALERTS CARD -->
+<div class="zenith-card mb-3">
+  <div class="flex justify-between items-center mb-2.5">
+    <p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(255,215,0,.5)">SMART ALERTS V8</p>
+    <span class="badge b-gold-lvl">ZENITH</span>
+  </div>
+  <div class="flex gap-2 mb-2">
+    <input id="alert-price" type="number" step="0.01" placeholder="Price..." class="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] text-white/70 focus:outline-none focus:border-[var(--gold)]"/>
+    <input id="alert-label" type="text" placeholder="Label..." class="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] text-white/70 focus:outline-none focus:border-[var(--gold)]"/>
+  </div>
+  <div class="flex gap-2 mb-3">
+    <button onclick="addZenithAlert('above',document.getElementById('alert-price').value,document.getElementById('alert-label').value||'Price Above')" class="flex-1 text-[8px] text-[#10B981] border border-[#10B981]/30 py-1.5 rounded-lg hdr">+ ABOVE</button>
+    <button onclick="addZenithAlert('below',document.getElementById('alert-price').value,document.getElementById('alert-label').value||'Price Below')" class="flex-1 text-[8px] text-[#EF4444] border border-[#EF4444]/30 py-1.5 rounded-lg hdr">+ BELOW</button>
+  </div>
+  <div id="alert-list"></div>
+</div>
+
+<!-- QUICK JOURNAL CARD -->
+<div class="zenith-card mb-3">
+  <div class="flex justify-between items-center mb-2.5">
+    <p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(255,215,0,.5)">TRADE JOURNAL V8</p>
+    <button onclick="clearJournal()" class="text-[6.5px] text-white/25 hdr">CLEAR</button>
+  </div>
+  <div class="flex gap-1.5 mb-2">
+    <button onclick="addJournalEntry('BUY',APST.price,document.getElementById('journal-note').value)" class="flex-1 text-[8px] text-[#10B981] border border-[#10B981]/30 py-1.5 rounded-lg hdr">▲ LOG BUY</button>
+    <button onclick="addJournalEntry('SELL',APST.price,document.getElementById('journal-note').value)" class="flex-1 text-[8px] text-[#EF4444] border border-[#EF4444]/30 py-1.5 rounded-lg hdr">▼ LOG SELL</button>
+    <button onclick="addJournalEntry('NOTE',APST.price,document.getElementById('journal-note').value)" class="flex-1 text-[8px] text-white/40 border border-white/10 py-1.5 rounded-lg hdr">✎ NOTE</button>
+  </div>
+  <input id="journal-note" type="text" placeholder="Catatan (opsional)..." class="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[10px] text-white/60 mb-2 focus:outline-none focus:border-[var(--gold)]"/>
+  <div id="journal-list"></div>
+</div>
+
+<!-- AUTO-TUNE INFO -->
+<div class="gp mb-3 flex justify-between items-center">
+  <div><p class="hdr text-[6.5px] text-white/22 uppercase tracking-widest mb-0.5">AUTO-TUNE REFRESH</p>
+  <p class="text-[8px] text-white/45">Refresh otomatis berdasar volatilitas</p></div>
+  <div class="text-right"><p id="auto-tune-val" class="hdr font-black text-[14px]" style="color:var(--gold)">--s</p><p class="text-[6.5px] text-white/22">interval</p></div>
+</div>
+
 <!-- ═══════════════════════════════════════════════ -->
 <!-- BITCOIN SENTINEL V7 APEX PANEL                 -->
 <!-- ═══════════════════════════════════════════════ -->
 <div class="text-center mb-3 mt-8 rounded-2xl p-4 border border-[rgba(247,147,26,.15)] bg-[rgba(247,147,26,.015)]">
   <p class="hdr text-[7px] tracking-[.25em] text-[#F7931A]/35 uppercase mb-1">SMC OB FVG VWAP ICHI EW SENTIMENT CHART SNIPER V7</p>
-  <h1 class="hdr text-[22px] tracking-tight" style="color:#F7931A;text-shadow:0 0 22px rgba(247,147,26,.35)">BITCOIN <span class="text-white text-[13px] opacity-65">SENTINEL V7 APEX</span></h1>
+  <h1 class="hdr text-[22px] tracking-tight" style="color:#F7931A;text-shadow:0 0 22px rgba(247,147,26,.35)">BITCOIN <span class="text-white text-[13px] opacity-65">SENTINEL <span style="color:#F7931A">V8 ZENITH</span></span></h1>
   <div class="flex justify-center items-center gap-2 text-[7.5px] mt-2 opacity-38 uppercase tracking-[.12em] flex-wrap gap-y-1">
     <div id="btc-dot" class="w-1.5 h-1.5 rounded-full bg-[#F7931A] animate-pulse flex-shrink-0"></div>
     <span id="btc-api-st">SYNCING...</span><span class="opacity-25">|</span>
@@ -1133,6 +1556,22 @@ setTimeout(()=>{btcWinHistory=lsGet('gs7_btc_win')||{};fetchAllDataBTC();},3000)
     <button class="act-btn" onclick="openTradePlanBTC()" style="font-size:8.5px;background:rgba(247,147,26,.08);border-color:rgba(247,147,26,.22);color:#F7931A">PLAN</button>
     <button class="sec-btn" onclick="logSignalBTC()" style="font-size:8px">LOG</button>
     <button class="sec-btn" onclick="manualRefreshBTC()" style="font-size:8px">SCAN</button>
+  </div>
+</div>
+
+<!-- ═══ V8 ZENITH BTC PANELS ═══ -->
+<!-- BTC DOMINANCE CARD -->
+<div class="zenith-card-btc mb-3">
+  <div class="flex justify-between items-center mb-2">
+    <p class="hdr text-[7px] tracking-[.2em] uppercase" style="color:rgba(247,147,26,.5)">BTC DOMINANCE V8</p>
+    <span class="badge" style="background:rgba(247,147,26,.1);border-color:rgba(247,147,26,.3);color:#F7931A">SIMULATED</span>
+  </div>
+  <div class="flex items-center gap-3 mb-2">
+    <p id="btc-dom-val" class="hdr font-black text-[24px]" style="color:#F7931A">--</p>
+    <div class="flex-1">
+      <div class="bar-wrap" style="height:6px"><div id="btc-dom-bar" class="btc-dom-bar" style="width:50%"></div></div>
+      <p id="btc-dom-desc" class="text-[7.5px] text-white/45 mt-1">--</p>
+    </div>
   </div>
 </div>
 <!-- BTC MINI CHART -->
@@ -1317,5 +1756,8 @@ setTimeout(()=>{btcWinHistory=lsGet('gs7_btc_win')||{};fetchAllDataBTC();},3000)
   <div class="gp mb-2"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest mb-1.5">PERFORMANCE ESTIMATE</p><div class="flex justify-between text-[8.5px] mb-1.5"><span>BTC: <span id="btc-corr-btc-h24" class="font-bold">-</span></span><span>Gold: <span id="btc-corr-gold-h24" class="font-bold" style="color:var(--gold)">-</span></span></div><div class="bar-wrap" style="height:6px"><div id="btc-corr-bar" class="bar-fill" style="width:50%;background:#F7931A"></div></div></div>
   <div class="gp"><p class="hdr text-[6.5px] text-white/25 uppercase tracking-widest mb-1.5">ANALISA KORELASI</p><p id="btc-corr-analysis" class="text-[8.5px] text-white/60 leading-relaxed">Memuat...</p><div id="btc-corr-badges" class="flex flex-wrap mt-2"></div></div>
 </div>
-</body>
+<div style="text-align:center;padding:20px 0 8px;opacity:.18">
+<p style="font-family:Orbitron,sans-serif;font-size:7px;letter-spacing:.2em;color:rgba(255,215,0,.6)">GOLD &amp; BTC SENTINEL V8 ZENITH</p>
+<p style="font-family:monospace;font-size:6px;color:rgba(255,255,255,.3);margin-top:2px">SMC · ICT · HA · REGIME · CONFLUENCE · FEAR&amp;GREED</p>
+</div></body>
 </html>
